@@ -1,0 +1,441 @@
+# The browser's schema: the single source of truth for what the browser shows.
+#
+# It imports the evidence model (a vendored copy of mondo-ai's SIEVE schema, see
+# vendor/README.md), specialises the packet into a BrowserRecord that adds what the
+# browser computes, and carries the display hints as slot annotations:
+#
+#   browser_key: true             the slot holding the record's stable id (URL key)
+#   browser_tab: true             an enum slot whose permissible values are the tabs
+#   browser_column: <n>           show as a table column, ordered by n
+#   browser_preview: <n>          show when a table row is expanded, ordered by n
+#   browser_sortable: true        the column can be sorted (it gets an index)
+#   browser_default_sort: asc|desc   the table's default order
+#   browser_search: true          included in full-text search
+#   browser_filter: true          offered as a filter
+#   browser_field: <slot>         for a class-valued column: which slot of it to show
+#   browser_format: score|curie|badge|list   how to render a value
+#   browser_layout: table|hidden  how the detail view lays out a slot
+#   browser_widget: radio|textarea|text      sign-off form widget
+#
+# Class annotations:
+#   browser_root: true            the class whose instances are the records
+#   browser_form: true            the class whose slots make the sign-off form
+#   browser_history: true         the class of recorded sign-offs, shown as history
+#   browser_explain: true         the class explained on the list page (with its slots)
+#   browser_title: "{path} ..."   template for a record's heading
+#
+# A schema change means regenerating (`just build`), never editing UI code.
+
+id: https://w3id.org/monarch-initiative/mondo-evidence-browser
+name: mondo_evidence_browser
+title: Mondo evidence browser schema
+version: 0.1.0
+description: >-
+  Evidence records as the Mondo evidence browser shows them: a SIEVE evidence packet
+  plus the inclusion score (D-063), Mondo membership and review status the browser
+  computes, and the sign-off form (D-048, D-051, D-053).
+license: Apache-2.0
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  meb: https://w3id.org/monarch-initiative/mondo-evidence-browser/
+
+default_prefix: meb
+default_range: string
+
+imports:
+  - linkml:types
+  - vendor/mondo_ai_sieve
+
+classes:
+
+  BrowserRecord:
+    is_a: EvidencePacket
+    description: >-
+      One evidence record: a statement, its evidence lines, and what the browser
+      computes about it.
+    tree_root: true
+    annotations:
+      browser_root: true
+      browser_title: "{statement.subject_label} {statement.predicate.label} {statement.object_label}"
+    slot_usage:
+      id:
+        title: Record ID
+        annotations:
+          browser_key: true
+      statement:
+        range: BrowserStatement
+      status:
+        title: Status in source
+      has_evidence_lines:
+        title: Evidence lines
+        annotations:
+          browser_preview: 2
+    attributes:
+      mondo_membership:
+        title: In Mondo?
+        range: MondoMembership
+        required: true
+        description: Whether the statement is already in the Mondo release compared against.
+        annotations:
+          browser_tab: true
+      mondo_release:
+        title: Mondo release
+        description: The Mondo release the membership was determined against.
+      claim_type:
+        title: Claim type
+        description: Mondo claim type (requirements CT form, D-039).
+        annotations:
+          browser_column: 5
+          browser_filter: true
+          browser_format: badge
+      sources:
+        title: Sources
+        multivalued: true
+        description: Distinct sources of the evidence lines.
+        annotations:
+          browser_column: 6
+          browser_format: list
+      inclusion_score:
+        title: Inclusion score
+        range: InclusionScore
+        inlined: true
+        required: true
+      review_status:
+        title: Review status
+        range: ReviewStatus
+        required: true
+        description: Where the record is in the sign-off workflow.
+        annotations:
+          browser_column: 7
+          browser_filter: true
+          browser_sortable: true
+          browser_format: badge
+      record_version:
+        title: Record version
+        required: true
+        description: >-
+          Content hash of the packet, ignoring created/updated. A sign-off applies to
+          one version (D-051).
+
+  BrowserStatement:
+    is_a: SieveStatement
+    description: The statement as shown in the browser.
+    slot_usage:
+      subject:
+        title: Mondo term
+        annotations:
+          browser_column: 1
+          browser_sortable: true
+          browser_search: true
+          browser_format: curie
+      subject_label:
+        title: Term label
+        annotations:
+          browser_column: 2
+          browser_sortable: true
+          browser_search: true
+      predicate:
+        title: Predicate
+        annotations:
+          browser_column: 3
+          browser_field: label
+          browser_filter: true
+      object_label:
+        title: Value
+        annotations:
+          browser_column: 4
+          browser_sortable: true
+          browser_search: true
+
+  InclusionScore:
+    description: >-
+      How strongly the evidence supports including the statement in Mondo (D-063).
+      Each evidence line contributes a weight w = d × s × q × c: its direction, the
+      strength of that kind of evidence for this claim type, the quality or trust of
+      its source, and the confidence that it was read correctly. Lines from sources
+      that depend on each other form one independence cluster, and only the strongest
+      line of a cluster counts. The weights are added to the claim prior and scaled:
+      S = tanh((L0 + k × Σw) / 2), which runs from -1 (the evidence disputes the
+      statement) through 0 (no net evidence) to +1 (it supports it).
+    annotations:
+      browser_explain: true
+    attributes:
+      value:
+        title: Score
+        range: float
+        description: >-
+          The inclusion score S, from -1 (disputed) to +1 (supported). Absent when no
+          rule covers the claim type.
+        annotations:
+          browser_column: 0
+          browser_sortable: true
+          browser_default_sort: desc
+          browser_format: score
+      band:
+        title: Band
+        description: Categorical label derived from score bands (D-047).
+      rule_id:
+        title: Rule
+        description: The declared aggregation rule that produced the score (D-048).
+      rule_version:
+        title: Rule version
+        description: The rule version that produced the score (D-048).
+      as_of:
+        title: Levels as of
+        description: Date of the quality and trust levels used (D-049, D-060).
+      claim_prior:
+        title: Claim prior (L0)
+        range: float
+        description: >-
+          Prior log-odds for this claim type and proposing channel, before any
+          evidence (D-063 Q3).
+      scaling:
+        title: Scaling (k)
+        range: float
+        description: How strongly the summed weights move the score.
+      log_odds:
+        title: Log-odds (L)
+        range: float
+        description: L0 + k × Σw; the score is tanh(L / 2).
+      proposing_channel:
+        title: Proposing channel
+        description: The route that proposed the statement, which sets the claim prior.
+      components:
+        title: Score components
+        range: ScoreComponent
+        multivalued: true
+        inlined_as_list: true
+        description: How each evidence line enters the score, or why it does not.
+        annotations:
+          browser_layout: table
+          browser_preview: 1
+      notes:
+        title: Notes
+        multivalued: true
+
+  ScoreComponent:
+    description: One evidence line's contribution to the inclusion score.
+    attributes:
+      line_id:
+        title: Line
+        description: The evidence line this row is about.
+      kind:
+        title: Kind
+        description: >-
+          What kind of evidence the line is, e.g. concordance (another source asserts
+          the same statement) or expert judgement.
+      source:
+        title: Source
+        description: The resource or agent the evidence comes from.
+      direction:
+        title: Direction (d)
+        range: integer
+        description: +1 if the line supports the statement, -1 if it disputes it (D-033).
+      strength:
+        title: Strength (s)
+        range: float
+        description: >-
+          How strong this kind of evidence is for this claim type, 0 to 1 (D-054).
+      source_prior:
+        title: Source prior (q)
+        range: float
+        description: >-
+          Quality of the source resource, or trust in the agent for a judgement, 0 to 1
+          (D-060, D-049, D-052).
+      source_prior_basis:
+        title: q from
+        description: Where the source prior came from, e.g. the resource registry.
+      confidence:
+        title: Confidence (c)
+        range: float
+        description: >-
+          Confidence that the line was read and grounded correctly, 0 to 1. Data
+          quality, not evidence strength; below the floor the line is excluded (D-062).
+      confidence_basis:
+        title: c from
+        description: RECORDED when the source states it, PRIOR when it is assumed.
+      weight:
+        title: Weight (w)
+        range: float
+        description: d × s × q × c, after any cap. This is what the line adds to Σw.
+      cluster:
+        title: Independence cluster
+        description: >-
+          Lines from sources that derive from each other share a cluster; only the
+          strongest line of a cluster counts (D-046).
+      counted:
+        title: Counted
+        range: boolean
+        description: Whether the line's weight is included in Σw.
+      capped:
+        title: Capped
+        range: boolean
+        description: >-
+          Whether a judgement line was capped at what it rests on (D-063 Q5).
+      reason:
+        title: Why
+        description: Why the line does not count, or how it was capped.
+
+  SignOff:
+    description: >-
+      A curator's assertion decision (D-045, D-048). The form shown on every record
+      is generated from this class.
+    annotations:
+      browser_form: true
+    attributes:
+      outcome:
+        title: Decision
+        range: Outcome
+        required: true
+        annotations:
+          browser_widget: radio
+      rationale:
+        title: Rationale
+        description: Optional, one or two sentences (D-051).
+        annotations:
+          browser_widget: textarea
+      guideline:
+        title: Guideline or SOP followed
+        description: Optional, e.g. the Mondo synonym curation guide (D-051).
+      perspective:
+        title: Perspective
+        description: Optional, e.g. clinical or research (D-051).
+
+  Decision:
+    is_a: SignOff
+    description: >-
+      A recorded sign-off. The decision log is append-only: decisions are never
+      edited or deleted, and the latest one per record is its current decision
+      (D-051, D-053).
+    annotations:
+      browser_history: true
+    attributes:
+      decision_id:
+        identifier: true
+        title: Decision
+      format:
+        title: Decision format
+      packet_id:
+        title: Record
+        required: true
+      statement_id:
+        title: Statement
+      packet_version:
+        title: Signed-off version
+        required: true
+        description: The record version the curator saw (D-051).
+      statement:
+        title: Statement signed off
+        range: DecisionStatement
+        inlined: true
+      score:
+        title: Score signed off
+        range: DecisionScore
+        inlined: true
+        required: true
+        description: The score and rule version on screen when signing (D-048).
+      curator:
+        title: Curator
+        range: Curator
+        inlined: true
+        required: true
+      decided_at:
+        title: Decided at
+        range: datetime
+        required: true
+
+  DecisionStatement:
+    description: The statement a decision is about.
+    attributes:
+      subject:
+        title: Subject
+        range: uriorcurie
+      predicate:
+        title: Predicate
+      object:
+        title: Object
+
+  DecisionScore:
+    description: The inclusion score a decision was given on.
+    attributes:
+      value:
+        title: Score
+        range: float
+        annotations:
+          browser_format: score
+      band:
+        title: Band
+      rule_id:
+        title: Rule
+      rule_version:
+        title: Rule version
+        required: true
+
+  Curator:
+    description: Who signed off, with role and trust as of signing (D-049, D-051).
+    attributes:
+      orcid:
+        title: ORCID
+        range: uriorcurie
+        required: true
+      name:
+        title: Name
+      role:
+        title: Role
+      trust:
+        title: Trust
+        range: float
+      trust_as_of:
+        title: Trust as of
+        range: date
+
+enums:
+
+  MondoMembership:
+    description: Whether a statement is already asserted in Mondo.
+    permissible_values:
+      IN_MONDO:
+        title: In Mondo
+        description: Evidence for statements already in Mondo.
+      CANDIDATE:
+        title: Candidates
+        description: Evidence for candidate statements not in Mondo yet.
+      NOT_CHECKED:
+        title: Not checked
+        description: >-
+          Statements of a claim type the build cannot yet compare with the Mondo
+          release (only synonyms and subclass placement are checked).
+
+  Outcome:
+    description: Assertion decision outcomes (D-053).
+    permissible_values:
+      accepted:
+        title: Accept
+        description: The claim is in Mondo.
+      rejected:
+        title: Reject
+        description: The claim stays out of, or is removed from, Mondo. Kept on record.
+      controversial:
+        title: Controversial
+        description: Kept, with disputing evidence acknowledged.
+      deferred:
+        title: Defer
+        description: Undecided; back in the curation queue.
+
+  ReviewStatus:
+    description: Workflow status of a record.
+    permissible_values:
+      unreviewed:
+        title: Unreviewed
+      stale:
+        title: Signed off on an older version
+        description: The record or its score rule changed after the last sign-off.
+      accepted:
+        title: Accepted
+      rejected:
+        title: Rejected
+      controversial:
+        title: Controversial
+      deferred:
+        title: Deferred

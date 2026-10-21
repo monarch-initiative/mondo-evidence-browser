@@ -1,0 +1,86 @@
+# Build the static browser from the mondo-ai packet store and the current Mondo
+# release, and deploy it to GitHub Pages. Runs on pushes to main, weekly (to pick up
+# new Mondo releases and packets), and on demand.
+#
+# Repository variables (Settings > Secrets and variables > Actions > Variables):
+#   MEB_SERVICE_URL   URL of the sign-off service; unset for a read-only site
+#   ORCID_CLIENT_ID   ORCID client id for login; unset for no login
+#   ORCID_BASE_URL    https://orcid.org for production (default: the sandbox)
+---
+name: Deploy to GitHub Pages
+
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  PACKETS_REPOSITORY: semanticly-ai/mondo-ai
+  PACKETS_PATH: packet_store_merged
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check out the packet store
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PACKETS_REPOSITORY }}
+          path: packets
+          sparse-checkout: ${{ env.PACKETS_PATH }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install project
+        run: |
+          uv sync
+          npm ci
+      - name: Fetch the current Mondo release
+        run: |
+          mkdir -p data
+          curl -sSL --fail -o data/mondo.obo https://purl.obolibrary.org/obo/mondo.obo
+          grep -m1 '^data-version:' data/mondo.obo
+      - name: Build the site
+        env:
+          MEB_SERVICE_URL: ${{ vars.MEB_SERVICE_URL }}
+          ORCID_CLIENT_ID: ${{ vars.ORCID_CLIENT_ID }}
+          ORCID_BASE_URL: ${{ vars.ORCID_BASE_URL || 'https://sandbox.orcid.org' }}
+        run: |
+          if [ -z "$MEB_SERVICE_URL" ]; then unset MEB_SERVICE_URL; fi
+          if [ -z "$ORCID_CLIENT_ID" ]; then unset ORCID_CLIENT_ID; fi
+          uv run mondo-evidence-browser build --store "packets/$PACKETS_PATH" --site site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,676 @@
+name: SEPIO-Model
+id: https://w3id.org/sepio-model
+description: >-
+  Trimmed SEPIO (Scientific Evidence and Provenance Information Ontology) model
+  containing only the base classes used by the SIEVE evidence framework.
+  Full SEPIO schema archived in sepio_classes_full.yaml.
+imports:
+- linkml:types
+prefixes:
+  linkml: https://w3id.org/linkml/
+  sepio-model: https://example.org/sepio-model/
+default_prefix: sepio-model
+default_range: string
+
+classes:
+
+  Entity:
+    description: >-
+      Anything that exists, has existed, or will exist. Root class of the
+      SEPIO core information model.
+    from_schema: https://w3id.org/sepio-model
+    status: Draft
+    attributes:
+      id:
+        description: >-
+          The logical identifier of the entity in the system of record, e.g. a UUID.
+        status: Draft
+        range: string
+        required: true
+        multivalued: false
+      identifiers:
+        description: >-
+          Globally-unique business identifiers or accession numbers for the entity.
+        status: Informative
+        range: string
+        required: false
+        multivalued: true
+      type:
+        description: >-
+          The name of the class that is instantiated by a data object representing the Entity.
+        status: Draft
+        range: string
+        required: true
+        multivalued: false
+      label:
+        description: A primary name for the Entity.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      alternative_labels:
+        description: Alternative name(s) for the Entity.
+        status: Draft
+        range: string
+        required: false
+        multivalued: true
+      description:
+        description: A free text description of the Entity.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      extensions:
+        description: >-
+          A list of extensions to the Entity, that allow for capture of information
+          not directly supported by elements defined in the model.
+        status: Draft
+        range: Extension
+        required: false
+        multivalued: true
+
+  InformationEntity:
+    description: >-
+      An abstract (non-physical) entity that is about something - representing
+      the underlying information content conveyed by physical or digital artifacts.
+    from_schema: https://w3id.org/sepio-model
+    status: Draft
+    is_a: Entity
+    attributes:
+      is_about:
+        description: An entity or concept that the information entity describes/is about.
+        status: Informative
+        range: string
+        required: false
+        multivalued: true
+      contributions:
+        description: >-
+          Specific actions taken by an Agent toward the creation, modification,
+          validation, or deprecation of an Information Entity.
+        status: Draft
+        range: Contribution
+        required: false
+        multivalued: true
+      date_authored:
+        description: When the information content was generated.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      specified_by:
+        description: >-
+          A specification that describes all or part of the process that led to
+          creation of the Information Entity.
+        status: Draft
+        range: string
+        required: false
+        multivalued: true
+      derived_from:
+        description: >-
+          Another Information Entity from which this one is derived.
+        status: Draft
+        range: InformationEntity
+        required: false
+        multivalued: true
+      reported_in:
+        description: A document in which the Information Entity is reported.
+        status: Draft
+        range: string
+        required: false
+        multivalued: true
+      sources:
+        description: >-
+          A document or other information resource in which the information entity,
+          or evidence supporting it, is reported.
+        status: Draft
+        range: string
+        required: false
+        multivalued: true
+      record_metadata:
+        description: >-
+          Provenance metadata about a specific concrete record of information.
+        status: Draft
+        range: RecordMetadata
+        required: false
+        multivalued: false
+
+  Statement:
+    description: >-
+      A claim of purported truth as made by a particular agent. Statements may
+      put forth a proposition as true, or provide a nuanced assessment of
+      confidence or evidence supporting a proposition.
+    from_schema: https://w3id.org/sepio-model
+    status: Draft
+    is_a: InformationEntity
+    attributes:
+      statement_text:
+        description: A natural-language expression of what a Statement asserts to be true.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      proposition:
+        description: A possible fact that the Statement assesses or puts forth as true.
+        status: Informative
+        range: Proposition
+        required: false
+        multivalued: false
+      subject:
+        description: The Entity or concept about which the Statement is made.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      predicate:
+        description: >-
+          The relationship declared to hold between the subject and the object
+          of the Statement.
+        status: Draft
+        range: Coding
+        required: false
+        multivalued: false
+      object:
+        description: >-
+          An Entity or concept that is related to the subject of a Statement
+          via its predicate.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      qualifier:
+        description: >-
+          An additional piece of information that extends or refines the meaning
+          of a Statement's core subject-predicate-object triple.
+        status: Informative
+        range: Qualifier
+        required: false
+        multivalued: true
+      direction:
+        description: >-
+          Whether the Statement supports, disputes, or is neutral w.r.t.
+          the validity of its Proposition.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      strength:
+        description: >-
+          The strength of a Proposition's assessment in the direction indicated.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      score:
+        description: >-
+          A quantitative score indicating the strength of a Proposition's
+          validity assessment.
+        status: Draft
+        range: float
+        required: false
+        multivalued: false
+      has_evidence_lines:
+        description: >-
+          Evidence-based arguments that support or dispute the validity of
+          the Statement's proposition.
+        status: Draft
+        range: EvidenceLine
+        required: false
+        multivalued: true
+      has_evidence:
+        description: >-
+          A piece of information that contributes to an argument for or against
+          the Statement's proposition. Shortcut bypassing EvidenceLine.
+        status: Informative
+        range: InformationEntity
+        required: false
+        multivalued: true
+
+  EvidenceLine:
+    description: >-
+      An independent, evidence-based argument that may support or refute
+      the validity of a specific proposition, based on interpretation of
+      one or more pieces of information as evidence.
+    from_schema: https://w3id.org/sepio-model
+    status: Draft
+    is_a: InformationEntity
+    attributes:
+      has_evidence_items:
+        description: >-
+          Individual pieces of information evaluated as evidence in building
+          this argument.
+        status: Draft
+        range: InformationEntity
+        required: false
+        multivalued: true
+      direction_of_evidence_provided:
+        description: >-
+          The direction of support toward its target Proposition
+          (supports, disputes, neutral).
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      strength_of_evidence_provided:
+        description: >-
+          The qualitative strength of support for or against its target Proposition.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      score_of_evidence_provided:
+        description: >-
+          A quantitative score indicating the strength of support.
+        status: Draft
+        range: float
+        required: false
+        multivalued: false
+
+  Document:
+    description: >-
+      A collection of information in text-based or graphic human-readable form,
+      intended to be read and understood together as a whole.
+    from_schema: https://w3id.org/sepio-model
+    status: Draft
+    is_a: InformationEntity
+    attributes:
+      subtype:
+        description: A specific type of document (e.g. publication, patent, report).
+        status: Draft
+        range: Coding
+        required: false
+        multivalued: false
+      title:
+        description: The official title given to the document by its authors.
+        range: string
+        required: false
+        multivalued: false
+      urls:
+        description: URLs from which the Document content can be retrieved.
+        status: Draft
+        range: string
+        required: false
+        multivalued: true
+      pmid:
+        description: >-
+          A PubMed unique identifier for the document.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      doi:
+        description: A Digital Object Identifier for the document.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+
+  DataItem:
+    description: >-
+      An Information Entity representing an individual piece of data, generated
+      or acquired through methods which reliably produce truthful information.
+    from_schema: https://w3id.org/sepio-model
+    status: Informative
+    is_a: InformationEntity
+    attributes:
+      subtype:
+        description: A specific type of data the DataItem represents.
+        status: Informative
+        range: Coding
+        required: false
+        multivalued: false
+      value:
+        description: The value of the data item.
+        status: Informative
+        range: string
+        required: true
+        multivalued: false
+      unit:
+        description: A unit of measure for the value.
+        status: Informative
+        range: Coding
+        required: false
+        multivalued: false
+
+  StudyResult:
+    description: >-
+      A collection of data items from a single study that pertain to a particular
+      subject or experimental unit, along with optional provenance information.
+    from_schema: https://w3id.org/sepio-model
+    status: Draft
+    is_a: InformationEntity
+    attributes:
+      focus:
+        description: >-
+          A specific subject or experimental unit the data is about.
+        range: string
+        required: false
+        multivalued: false
+      data_items:
+        description: Data items included in the StudyResult.
+        status: Informative
+        range: DataItem
+        required: false
+        multivalued: true
+      source_data_set:
+        description: A larger DataSet from which this content was derived.
+        status: Draft
+        range: DataSet
+        required: false
+        multivalued: true
+
+  DataSet:
+    description: >-
+      A collection of related data items organized together in a common format.
+    from_schema: https://w3id.org/sepio-model
+    status: Draft
+    is_a: InformationEntity
+    attributes:
+      subtype:
+        description: A specific type of data set.
+        status: Informative
+        range: Coding
+        required: false
+        multivalued: false
+      version:
+        description: The version of the DataSet.
+        status: Informative
+        range: string
+        required: false
+        multivalued: false
+
+  Activity:
+    description: >-
+      An action or set of actions performed by an agent, occurring over a period
+      of time.
+    from_schema: https://w3id.org/sepio-model
+    status: Informative
+    is_a: Entity
+    attributes:
+      subtype:
+        description: A specific type of activity.
+        status: Informative
+        range: Coding
+        required: false
+        multivalued: false
+      date:
+        description: The date that the Activity was completed (ISO 8601 string).
+        status: Draft
+        # range is string, not the `date` type: a slot named `date` with range
+        # `date` makes gen-pydantic emit `date: Optional[date]`, which shadows the
+        # imported date type and fails to evaluate on Python 3.10.
+        range: string
+        required: false
+        multivalued: false
+      performed_by:
+        description: An Agent who participated in executing the Activity.
+        status: Draft
+        range: Agent
+        required: false
+        multivalued: true
+
+  Contribution:
+    description: >-
+      An action or actions taken by a particular agent in the creation,
+      modification, assessment, or deprecation of some entity.
+    from_schema: https://w3id.org/sepio-model
+    status: Draft
+    is_a: Activity
+    attributes:
+      contributor:
+        description: The Agent that made the contribution.
+        status: Draft
+        range: Agent
+        required: false
+        multivalued: false
+      activity_type:
+        description: >-
+          The specific type of activity performed or role played by an agent
+          in making the contribution.
+        status: Draft
+        range: Coding
+        required: false
+        multivalued: true
+
+  Agent:
+    description: >-
+      An autonomous actor (person, organization, or software agent) that bears
+      some form of responsibility for an activity or entity.
+    from_schema: https://w3id.org/sepio-model
+    status: Draft
+    is_a: Entity
+    attributes:
+      subtype:
+        description: >-
+          A specific type of agent (person, organization, software).
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      name:
+        description: The given name of the Agent.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+
+  Proposition:
+    description: >-
+      An abstract entity representing a possible fact that is either true or false.
+    from_schema: https://w3id.org/sepio-model
+    status: Informative
+    is_a: Entity
+    attributes:
+      proposition_text:
+        description: A natural-language expression of the Proposition's meaning.
+        status: Informative
+        range: string
+        required: false
+        multivalued: false
+      subject:
+        description: The Entity or concept about which the Proposition is made.
+        status: Informative
+        range: string
+        required: true
+        multivalued: false
+      predicate:
+        description: The relationship declared to hold between subject and object.
+        status: Informative
+        range: Coding
+        required: false
+        multivalued: false
+      object:
+        description: An Entity or concept related to the subject via the predicate.
+        status: Informative
+        range: string
+        required: false
+        multivalued: false
+
+  # =========================================================================
+  # Utility classes (complex datatypes)
+  # =========================================================================
+
+  Utility:
+    description: >-
+      Abstract organizational class grouping classes that act as complex
+      datatypes in the model.
+    from_schema: https://w3id.org/sepio-model
+
+  Coding:
+    description: >-
+      A structured representation of a code for a defined concept in a
+      terminology or code system.
+    from_schema: https://w3id.org/sepio-model
+    is_a: Utility
+    attributes:
+      code:
+        description: A symbol uniquely identifying the concept (CURIE format preferred).
+        range: string
+        required: false
+        multivalued: false
+      label:
+        description: The human-readable name for the coded concept.
+        range: string
+        required: false
+        multivalued: false
+      system:
+        description: The terminology/code system that defined the code.
+        range: string
+        required: false
+        multivalued: false
+      system_version:
+        description: Version of the terminology or code system.
+        range: string
+        required: false
+        multivalued: false
+
+  Qualifier:
+    description: >-
+      A key-value object capturing additional information that extends or refines
+      the meaning of a Statement's subject-predicate-object triple.
+    from_schema: https://w3id.org/sepio-model
+    status: Informative
+    is_a: Utility
+    attributes:
+      name:
+        description: The type of qualifying information.
+        status: Informative
+        range: string
+        required: true
+        multivalued: false
+      value:
+        description: The value of the qualifier.
+        status: Informative
+        range: string
+        required: true
+        multivalued: false
+
+  Expression:
+    description: >-
+      A label representing a systematic expression for an entity, generated
+      by formal nomenclatures.
+    from_schema: https://w3id.org/sepio-model
+    is_a: Utility
+    attributes:
+      value:
+        description: A free-text rendering of the expression.
+        range: string
+        required: true
+        multivalued: false
+      system_url:
+        description: A URL for the nomenclature system.
+        range: uriorcurie
+        required: false
+        multivalued: false
+      system_version:
+        description: The version of the nomenclature system.
+        range: string
+        required: false
+        multivalued: false
+
+  Extension:
+    description: >-
+      A data structure that allows custom attributes to be defined for an Entity.
+    from_schema: https://w3id.org/sepio-model
+    is_a: Utility
+    attributes:
+      extension_description:
+        description: Description of the extension element's intended meaning and use.
+        range: string
+        required: false
+        multivalued: false
+      name:
+        description: A name for the Extension.
+        range: string
+        required: true
+        multivalued: false
+      value:
+        description: The value of the Extension.
+        required: true
+        multivalued: false
+
+  RecordMetadata:
+    description: >-
+      Provenance metadata about a serialized data record or object in a dataset.
+    from_schema: https://w3id.org/sepio-model
+    status: Draft
+    is_a: Utility
+    attributes:
+      record_identifier:
+        description: The identifier of the record.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      record_version:
+        description: The version number of the record.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      derived_from_record:
+        description: Another data record from which this was derived.
+        status: Draft
+        range: string
+        required: false
+        multivalued: true
+      date_record_created:
+        description: The date the record was initially created.
+        status: Draft
+        range: string
+        required: false
+        multivalued: false
+      contributions:
+        description: >-
+          Contributions made by an agent to the creation or management of this record.
+        status: Draft
+        range: Contribution
+        required: false
+        multivalued: true
+
+  Characteristic:
+    description: >-
+      A name-value pair describing a trait or role of an individual member of
+      a StudyGroup.
+    from_schema: https://w3id.org/sepio-model
+    status: Draft
+    is_a: Utility
+    attributes:
+      name:
+        description: The type of trait or role.
+        status: Draft
+        range: string
+        required: true
+        multivalued: false
+      values:
+        description: The specific value(s) of the trait.
+        status: Draft
+        range: string
+        required: true
+        multivalued: true
+
+  StudyGroup:
+    description: >-
+      A collection of individuals or specimens selected for analysis based on
+      shared characteristics.
+    from_schema: https://w3id.org/sepio-model
+    status: Draft
+    is_a: Entity
+    attributes:
+      member_count:
+        description: Total number of members in the StudyGroup.
+        status: Informative
+        range: integer
+        required: false
+        multivalued: false
+      is_subset_of:
+        description: A larger StudyGroup of which this is a subset.
+        status: Draft
+        range: StudyGroup
+        required: false
+        multivalued: true
+      characteristics:
+        description: Features shared by all members.
+        status: Draft
+        range: Characteristic
+        required: false
+        multivalued: true

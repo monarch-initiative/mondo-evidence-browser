@@ -1,0 +1,9 @@
+{
+  "name": "mondo-evidence-browser-frontend",
+  "private": true,
+  "description": "Front-end runtime dependencies, copied into the static site by `just build`.",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "sql.js-httpvfs": "0.8.12"
+  }
+}

@@ -1,0 +1,13 @@
+# Changes here will be overwritten by Copier
+_commit: 34d23a0
+_src_path: gh:monarch-initiative/monarch-project-copier
+copyright_year: '2026'
+email: yaseminbridges@gmail.com
+full_name: Yasemin Bridges
+gh_action_docs_preview: false
+github_handle: yaseminbridges
+github_org: monarch-initiative
+license: Apache-2.0
+project_description: Schema-driven browser and sign-off tool for Mondo evidence records.
+project_name: mondo-evidence-browser
+project_slug: mondo_evidence_browser

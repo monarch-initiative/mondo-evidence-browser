@@ -1,0 +1,97 @@
+"""Command line: build the index and static site, print the view spec, serve."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Annotated
+
+import typer
+
+from mondo_evidence_browser.build import BuildConfig, BuildError
+from mondo_evidence_browser.build import build as run_build
+from mondo_evidence_browser.viewspec import SCHEMA_PATH, build_view_spec
+
+app = typer.Typer(no_args_is_help=True, help="Mondo evidence browser.")
+
+
+@app.command()
+def build(
+    store: Annotated[Path, typer.Option(help="Directory with packets_*.jsonl")] = Path(
+        "../mondo-ai/packet_store_merged"
+    ),
+    mondo: Annotated[Path, typer.Option(help="Mondo release (mondo.obo)")] = Path("data/mondo.obo"),
+    config: Annotated[Path, typer.Option(help="Score rule and registries")] = Path("config"),
+    index: Annotated[Path, typer.Option(help="SQLite index to write")] = Path("var/evidence.db"),
+    site: Annotated[Path, typer.Option(help="Static site to write")] = Path("site"),
+    decisions: Annotated[Path, typer.Option(help="Decision log")] = Path("var/decisions.jsonl"),
+    schema: Annotated[Path, typer.Option(help="Browser schema")] = SCHEMA_PATH,
+    service_url: Annotated[
+        str | None,
+        typer.Option(
+            envvar="MEB_SERVICE_URL",
+            help='Sign-off service URL; "" when the service serves the site itself',
+        ),
+    ] = None,
+    orcid_client_id: Annotated[str | None, typer.Option(envvar="ORCID_CLIENT_ID")] = None,
+    data_url: Annotated[
+        str | None,
+        typer.Option(envvar="MEB_DATA_URL", help="Serve the data files from this URL"),
+    ] = None,
+    data_dir: Annotated[
+        Path | None, typer.Option(help="Where to write the data files for --data-url")
+    ] = None,
+    orcid_base_url: Annotated[str, typer.Option(envvar="ORCID_BASE_URL")] = (
+        "https://sandbox.orcid.org"
+    ),
+) -> None:
+    """Build the index and the static site from a packet store and a Mondo release."""
+    if not mondo.exists():
+        typer.echo(f"No Mondo release at {mondo}. Run `just fetch-mondo` first.", err=True)
+        raise typer.Exit(1)
+    try:  # a data problem is reported as a message, not a traceback
+        report = run_build(
+            BuildConfig(
+                store_dir=store,
+                mondo_obo=mondo,
+                config_dir=config,
+                index_path=index,
+                site_dir=site,
+                decisions_path=decisions,
+                schema_path=schema,
+                service_url=service_url,
+                orcid_client_id=orcid_client_id,
+                orcid_base_url=orcid_base_url,
+                data_url=data_url,
+                data_dir=data_dir,
+            )
+        )
+    except BuildError as error:
+        typer.echo(f"Build failed: {error}", err=True)
+        raise typer.Exit(1) from error
+    tabs = ", ".join(f"{tab} {n:,}" for tab, n in sorted(report.tab_counts.items()))
+    typer.echo(
+        f"Built {report.records:,} records ({tabs}); skipped {report.skipped:,} unrecognised. "
+        f"Index {report.db_bytes / 1e6:.1f} MB. Site: {site}"
+    )
+    for example in report.skipped_examples:
+        typer.echo(f"  skipped: {example}")
+
+
+@app.command()
+def spec(schema: Annotated[Path, typer.Option(help="Browser schema")] = SCHEMA_PATH) -> None:
+    """Print the view spec derived from the schema."""
+    typer.echo(json.dumps(build_view_spec(schema), indent=2))
+
+
+@app.command()
+def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
+    """Run the sign-off service, serving the built site (settings from MEB_* / ORCID_*)."""
+    import uvicorn
+
+    from mondo_evidence_browser.service import ServiceSettings, create_service
+
+    settings = ServiceSettings.from_env()
+    if settings.orcid_client_id is None:
+        typer.echo("ORCID_CLIENT_ID is not set: browsing works, signing off does not.")
+    uvicorn.run(create_service(settings), host=host, port=port)

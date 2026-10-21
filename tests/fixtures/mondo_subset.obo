@@ -1,0 +1,623 @@
+format-version: 1.2
+data-version: releases/2026-10-06
+subsetdef: clingen "Disease classes available in the ClinGen resource"
+subsetdef: disease_grouping "disease_grouping"
+subsetdef: do_inheritance_inconsistent "classes where the corresponding DO term is both AR and AD https://github.com/monarch-initiative/monarch-disease-ontology/issues/406"
+subsetdef: doid_rare "DOID rare disease subset"
+subsetdef: gard_rare "GARD rare disease subset"
+subsetdef: harrisons_view "harrisons_view"
+subsetdef: historic_epidemic "classes representing a historic epidemic"
+subsetdef: implicit_genetic_in_ordo "in ORDO this is classified as genetic even though the class is used for non-genetic disorders"
+subsetdef: inferred_rare "inferred rare disease subset"
+subsetdef: merged_class "this class merges distinct concepts in other resources"
+subsetdef: metaclass "A grouping of disease classes. Should be excluded from analysis"
+subsetdef: mondo_curated_rare "mondo curated rare"
+subsetdef: mostly_harmless "condition has no severe phenotypes and is harmless or mostly harmless"
+subsetdef: n_of_one "N of one"
+subsetdef: ncit_rare "ncit rare"
+subsetdef: nord_rare "nord rare"
+subsetdef: not_a_disease "classes that do not represent diseases"
+subsetdef: obsoletion_candidate "obsoletion candidate"
+subsetdef: obsoletion_protected "obsoletion_protected"
+subsetdef: omim_susceptibility "OMIM entry with braces, e.g. {}, which indicate mutations that contribute to susceptibility to multifactorial disorders (e.g., diabetes, asthma) or to susceptibility to infection (e.g., malaria)."
+subsetdef: ordo_biological_anomaly "biological anomaly"
+subsetdef: ordo_clinical_situation "particular clinical situation in a disease or syndrome"
+subsetdef: ordo_clinical_subtype "clinical subtype"
+subsetdef: ordo_clinical_syndrome "clinical syndrome"
+subsetdef: ordo_disease "disease"
+subsetdef: ordo_disorder "disorder"
+subsetdef: ordo_etiological_subtype "etiological subtype"
+subsetdef: ordo_group_of_disorders "group of disorders"
+subsetdef: ordo_histopathological_subtype "histopathological subtype"
+subsetdef: ordo_inheritance_inconsistent "classes where the corresponding ordo term is both AR and AD https://github.com/monarch-initiative/monarch-disease-ontology/issues/406"
+subsetdef: ordo_malformation_syndrome "malformation syndrome"
+subsetdef: ordo_morphological_anomaly "morphological anomaly"
+subsetdef: ordo_subtype_of_a_disorder "subtype of a disorder"
+subsetdef: orphanet_rare "orphanet rare"
+subsetdef: otar "Disease classes available in the Open Targets resource"
+subsetdef: other_hierarchy "A bin for classes that are likely not diseases and may be moved to a separate hierarchy"
+subsetdef: predisposition "Diseases that are pre-dispositions to other diseases"
+subsetdef: prototype_pattern "Conforms to the prototype design pattern where the classic/type1 form may be confused with the grouping type. See https://github.com/monarch-initiative/monarch-disease-ontology/issues/149"
+subsetdef: rare "rare"
+subsetdef: rare_grouping "rare grouping"
+subsetdef: speculative "A hypothesized disease whose existence is speculative"
+subsetdef: venom_avian "VeNom avian animal type subset"
+subsetdef: venom_equine "VeNom equine animal type subset"
+subsetdef: venom_exotics "VeNom exotics animal type subset"
+subsetdef: venom_farm_animal "VeNom farm animal type subset"
+subsetdef: venom_large_animal "VeNom large animal type subset"
+subsetdef: venom_small_animal "VeNom small animal type subset"
+synonymtypedef: ABBREVIATION "abbreviation"
+synonymtypedef: AMBIGUOUS "ambiguous"
+synonymtypedef: DEPRECATED "A synonym that is historic and discouraged"
+synonymtypedef: DUBIOUS "dubious synonym"
+synonymtypedef: EXCLUDE "Synonym to be removed from public release but maintained in edit version as record of external usage"
+synonymtypedef: MISSPELLING "A synonym that is recorded for consistency with another source but is a misspelling"
+synonymtypedef: NON_HUMAN "A synonym that is used for non-human animal variants of a disease"
+synonymtypedef: OMO:0003005 "UK spelling synonym"
+idspace: BAO http://www.bioassayontology.org/bao#BAO_
+idspace: CoVIC https://cvdb.ontodev.com/antibody/
+idspace: dc http://purl.org/dc/elements/1.1/
+idspace: doap http://usefulinc.com/ns/doap#
+idspace: EFO http://www.ebi.ac.uk/efo/EFO_
+idspace: ENM http://purl.enanomapper.org/onto/ENM_
+idspace: faldo http://biohackathon.org/resource/faldo#
+idspace: foaf http://xmlns.com/foaf/0.1/
+idspace: gocam http://model.geneontology.org/
+idspace: ICD10CM http://purl.bioontology.org/ontology/ICD10CM/
+idspace: icd10cm http://purl.bioontology.org/ontology/ICD10CM/
+idspace: ICD10WHO https://icd.who.int/browse10/2019/en#/
+idspace: ICD11 http://id.who.int/icd/entity/
+idspace: icd11.foundation http://id.who.int/icd/entity/
+idspace: IEDB http://iedb.org/
+idspace: iedb-protein http://iedb.org/taxon-protein/
+idspace: MEDDRA http://identifiers.org/meddra/
+idspace: MEDGEN http://identifiers.org/medgen/
+idspace: MESH http://identifiers.org/mesh/
+idspace: NPO http://purl.bioontology.org/ontology/npo#NPO_
+idspace: oboInOwl http://www.geneontology.org/formats/oboInOwl#
+idspace: OMIM https://omim.org/entry/
+idspace: OMIMPS https://omim.org/phenotypicSeries/PS
+idspace: ONTIE https://ontology.iedb.org/ontology/ONTIE_
+idspace: Orphanet http://www.orpha.net/ORDO/Orphanet_
+idspace: PRO http://www.uniprot.org/annotation/PRO_
+idspace: protege http://protege.stanford.edu/plugins/owl/protege#
+idspace: SCTID http://identifiers.org/snomedct/
+idspace: skos http://www.w3.org/2004/02/skos/core#
+idspace: sssom https://w3id.org/sssom/
+idspace: terms http://purl.org/dc/terms/
+idspace: UC http://purl.uniprot.org/core/
+idspace: UMLS http://linkedlifedata.com/resource/umls/id/
+idspace: UP http://purl.uniprot.org/uniprot/
+idspace: vocab https://w3id.org/semapv/vocab/
+ontology: mondo
+property_value: dc:description "A semi-automatically constructed ontology that merges in multiple disease resources to yield a coherent merged ontology." xsd:string
+property_value: dc:title "Mondo Disease Ontology" xsd:string
+property_value: foaf:homepage "http://obofoundry.org/ontology/mondo.html" xsd:anyURI
+property_value: IAO:0000700 MONDO:0000001
+property_value: IAO:0000700 MONDO:0021125
+property_value: IAO:0000700 MONDO:0021178
+property_value: IAO:0000700 MONDO:0042489
+property_value: terms:license http://creativecommons.org/licenses/by/4.0/
+property_value: terms:source http://purl.obolibrary.org/obo/chebi.owl
+property_value: terms:source http://purl.obolibrary.org/obo/doid.owl
+property_value: terms:source http://purl.obolibrary.org/obo/envo.owl
+property_value: terms:source http://purl.obolibrary.org/obo/go.owl
+property_value: terms:source http://purl.obolibrary.org/obo/hp.owl
+property_value: terms:source http://purl.obolibrary.org/obo/mf.owl
+property_value: terms:source http://purl.obolibrary.org/obo/ncbitaxon.owl
+property_value: terms:source http://purl.obolibrary.org/obo/ncit.owl
+property_value: terms:source http://purl.obolibrary.org/obo/uberon.owl
+property_value: terms:source http://www.orpha.net/ontology/orphanet.owl
+property_value: terms:source https://id.nlm.nih.gov/mesh/
+property_value: terms:source https://rarediseases.info.nih.gov/
+
+[Term]
+id: MONDO:0004120
+name: Bartholin gland small cell carcinoma
+def: "A rare neuroendocrine carcinoma that arises from the Bartholin gland and is characterized by the presence of malignant small cells and high mitotic activity." [NCIT:P378]
+subset: gard_rare {source="GARD:0023834", source="MONDO:GARD"}
+subset: rare
+synonym: "Bartholin gland small cell carcinoma" EXACT [NCIT:C40298]
+synonym: "Bartholin's gland small cell carcinoma" EXACT [DOID:7140, NCIT:C40298]
+synonym: "major vestibular gland small cell carcinoma" EXACT [MONDO:patterns/location]
+synonym: "small cell carcinoma of major vestibular gland" EXACT [MONDO:design_pattern]
+xref: DOID:7140 {source="MONDO:equivalentTo"}
+xref: GARD:0023834 {source="MONDO:GARD"}
+xref: MEDGEN:267705 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: NCIT:C40298 {source="MONDO:equivalentTo", source="DOID:7140"}
+xref: UMLS:C1511051 {source="MONDO:equivalentTo", source="MONDO:MEDGEN", source="MEDGEN:267705"}
+is_a: MONDO:0000402 {source="DOID:7140", source="MONDO:Redundant", source="NCIT:C40298/inferred"} ! small cell carcinoma
+is_a: MONDO:0002829 {source="DOID:7140", source="MONDO:Redundant", source="NCIT:C40298"} ! bartholin gland carcinoma
+is_a: MONDO:0056816 ! vulvar neuroendocrine carcinoma
+intersection_of: MONDO:0000402 ! small cell carcinoma
+intersection_of: disease_has_location UBERON:0000460 ! major vestibular gland
+property_value: curated_content_resource "https://www.malacards.org/card/bartholins_gland_small_cell_carcinoma" xsd:anyURI {source="MONDO:MalaCards"}
+property_value: excluded_from_qc_check http://purl.obolibrary.org/obo/mondo/sparql/qc/general/qc-single-child.sparql
+property_value: skos:exactMatch DOID:7140
+property_value: skos:exactMatch MEDGEN:267705
+property_value: skos:exactMatch NCIT:C40298
+property_value: skos:exactMatch UMLS:C1511051
+property_value: terms:conformsTo http://purl.obolibrary.org/obo/mondo/patterns/location.yaml
+property_value: terms:conformsTo http://purl.obolibrary.org/obo/mondo/patterns/small_cell_carcinoma.yaml
+
+[Term]
+id: MONDO:0004286
+name: pancreatic intraductal papillary-mucinous neoplasm
+def: "A usually slow-growing epithelial neoplasm with ductal differentiation that arises from the exocrine pancreas and grows mostly within the pancreatic ducts. Grossly, it is characterized by the presence of intraductal masses. Morphologically, there is proliferation of mucin-producing cells within the pancreatic ducts, intraductal accumulation of mucin, and a papillary growth pattern. It may be associated with the presence of an invasive carcinoma. It usually occurs in older patients. Signs and symptoms include epigastric pain, weight loss, jaundice, chronic pancreatitis, and diabetes mellitus." [NCIT:C38342]
+subset: gard_rare {source="GARD:0027673", source="MONDO:GARD"}
+subset: rare
+synonym: "intraductal papillary mucinous neoplasm" RELATED [ONCOTREE:IPMN]
+synonym: "IPMN" EXACT ABBREVIATION []
+synonym: "pancreatic intraductal papillary-mucinous neoplasm" EXACT [DOID:7575, NCIT:C38342]
+synonym: "pancreatic intraductal papillary-mucinous tumor" EXACT [NCIT:C38342]
+synonym: "pancreatic intraductal papillary-mucinous tumour" EXACT OMO:0003005 []
+synonym: "pancreatic IPMN" EXACT [NCIT:C38342]
+xref: DOID:7575 {source="MONDO:equivalentTo"}
+xref: GARD:0027673 {source="MONDO:GARD"}
+xref: MEDGEN:1373306 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: NCIT:C38342 {source="NCIT:C38342", source="MONDO:equivalentTo", source="MONDO:exact-label-match", source="DOID:7575"}
+xref: ONCOTREE:IPMN {source="MONDO:equivalentTo"}
+xref: UMLS:C4511687 {source="MEDGEN:1373306", source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+is_a: MONDO:0002116 {source="DOID:7575"} ! malignant exocrine pancreas neoplasm
+property_value: skos:exactMatch DOID:7575
+property_value: skos:exactMatch MEDGEN:1373306
+property_value: skos:exactMatch NCIT:C38342
+property_value: skos:exactMatch UMLS:C4511687
+
+[Term]
+id: MONDO:0004790
+name: fatty liver disease
+def: "A reversible condition wherein large vacuoles of triglyceride fat accumulate in liver cells via the process of steatosis." [Wikipedia:Fatty_liver]
+comment: Editor note: classified as inherited in DO
+subset: otar {source="MONDO:OTAR"}
+synonym: "fatty liver" EXACT [MONDO:0005317]
+xref: DOID:9452 {source="MONDO:equivalentTo"}
+xref: ICD9:571.8 {source="MONDO:relatedTo", source="MONDO:i2s"}
+xref: MEDGEN:398225 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: MESH:D005234 {source="MONDO:equivalentTo", source="DOID:9452", source="EFO:0003934"}
+xref: SCTID:197321007 {source="MONDO:equivalentTo", source="DOID:9452", source="EFO:0003934"}
+xref: SCTID:371330000 {source="MONDO:equivalentObsolete", source="DOID:9452"}
+xref: UMLS:C2711227 {source="MONDO:equivalentTo", source="MONDO:MEDGEN", source="MEDGEN:398225"}
+is_a: MONDO:0005154 {source="DOID:9452", source="MESH:D005234", source="MONDO:Redundant"} ! liver disorder
+intersection_of: MONDO:0000001 ! disease
+intersection_of: disease_has_feature HP:0001397 ! Hepatic steatosis
+relationship: disease_has_basis_in_disruption_of GO:0071830 ! triglyceride-rich lipoprotein particle clearance
+relationship: disease_has_feature HP:0001397 ! Hepatic steatosis
+property_value: curated_content_resource "https://www.malacards.org/card/steatotic_liver_disease" xsd:anyURI {source="MONDO:MalaCards"}
+property_value: skos:exactMatch DOID:9452
+property_value: skos:exactMatch MEDGEN:398225
+property_value: skos:exactMatch MESH:D005234
+property_value: skos:exactMatch SCTID:197321007
+property_value: skos:exactMatch UMLS:C2711227
+
+[Term]
+id: MONDO:0004910
+name: mitral valve prolapse
+def: "A fairly common and often benign valvular heart disorder characterized by redundancy or hooding of mitral valve leaflets so that they prolapse into the left atrium, often causing mitral regurgitation. It is often a symptomless condition but may be marked by varied symptoms (e.g. chest pain, fatigue, dizziness, dyspnea, or palpitations) leading in some cases to endocarditis or ventricular tachycardia." [NCIT:P378]
+comment: This term is scheduled to be merged with MONDO:0001315 orthostatic intolerance, based on the fact that the concept of these 2 terms are the same. This ID will therefore be obsoleted and replaced with MONDO:0001315
+subset: obsoletion_candidate
+synonym: "barlow's syndrome" EXACT [DOID:988, MTH:097]
+synonym: "floppy mitral valve" EXACT [DOID:988, NCIT:C50655]
+synonym: "mitral valve prolapse" EXACT [DOID:988, icd11.foundation:1085590500, MONDO:ambiguous, NCIT:C50655]
+synonym: "mitral valve prolapse (disease)" EXACT [https://orcid.org/0000-0002-6601-2165]
+synonym: "mitral valve prolapse syndrome" EXACT [NCIT:C50655]
+synonym: "prolapse, mitral valve" EXACT []
+synonym: "valve, prolapse Of mitral" EXACT []
+xref: DOID:988 {source="MONDO:equivalentTo"}
+xref: HP:0001634 {source="MONDO:otherHierarchy"}
+xref: icd11.foundation:1085590500 {source="MONDO:equivalentTo"}
+xref: MEDGEN:7671 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: MESH:D008945 {source="https://orcid.org/0000-0003-1967-3726", source="DOID:988", source="MONDO:equivalentTo"}
+xref: NCIT:C50655 {source="DOID:988", source="MONDO:equivalentTo"}
+xref: SCTID:409712001 {source="DOID:988", source="MONDO:equivalentTo"}
+xref: SCTID:8074002 {source="MONDO:relatedTo", source="DOID:988"}
+xref: UMLS:C0026267 {source="MONDO:equivalentTo", source="MONDO:MEDGEN", source="MEDGEN:7671"}
+is_a: MONDO:0003767 {source="DOID:988", source="NCIT:C50655"} ! mitral valve disorder
+property_value: IAO:0000233 "https://github.com/monarch-initiative/mondo/issues/10509" xsd:anyURI
+property_value: IAO:0000589 "mitral valve prolapse (disease)" xsd:string
+property_value: IAO:0006012 "2026-10-01" xsd:string
+property_value: skos:exactMatch DOID:988
+property_value: skos:exactMatch icd11.foundation:1085590500
+property_value: skos:exactMatch MEDGEN:7671
+property_value: skos:exactMatch MESH:D008945
+property_value: skos:exactMatch NCIT:C50655
+property_value: skos:exactMatch SCTID:409712001
+property_value: skos:exactMatch UMLS:C0026267
+property_value: skos:relatedMatch SCTID:8074002
+
+[Term]
+id: MONDO:0004946
+name: hypoglycemia
+def: "Abnormally low level of glucose in the blood." [NCIT:P378]
+synonym: "blood glucose, Low" EXACT []
+synonym: "glucose, Low blood" EXACT []
+synonym: "low blood glucose" EXACT []
+xref: DOID:9993 {source="MONDO:equivalentTo"}
+xref: ICD9:251.1 {source="MONDO:relatedTo", source="MONDO:i2s"}
+xref: ICD9:251.2 {source="MONDO:equivalentTo", source="MONDO:i2s", source="DOID:9993"}
+xref: MEDGEN:6979 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: MESH:D007003 {source="MONDO:equivalentTo", source="DOID:9993"}
+xref: NCIT:C3126 {source="MONDO:equivalentTo", source="MONDO:otherHierarchy", source="DOID:9993"}
+xref: SCTID:302866003 {source="MONDO:equivalentTo", source="DOID:9993"}
+xref: UMLS:C0020615 {source="MONDO:equivalentTo", source="MONDO:MEDGEN", source="MEDGEN:6979"}
+is_a: MONDO:0002908 {source="DOID:9993", source="MESH:D007003"} ! glucose metabolism disease
+relationship: excluded_subClassOf MONDO:0001933 {source="DOID:9993", source="https://orcid.org/0000-0001-5208-3432"} ! endocrine pancreas disorder
+property_value: curated_content_resource "https://www.malacards.org/card/hypoglycemia" xsd:anyURI {source="MONDO:MalaCards"}
+property_value: skos:exactMatch DOID:9993
+property_value: skos:exactMatch MEDGEN:6979
+property_value: skos:exactMatch MESH:D007003
+property_value: skos:exactMatch NCIT:C3126
+property_value: skos:exactMatch SCTID:302866003
+property_value: skos:exactMatch UMLS:C0020615
+
+[Term]
+id: MONDO:0006861
+name: myeloid sarcoma
+def: "A tumor mass composed of myeloblasts or immature myeloid cells. It occurs in extramedullary sites or the bone. (WHO, 2001)" [NCIT:P378]
+subset: doid_rare {source="DOID:8683"}
+subset: gard_rare {source="GARD:0012763", source="MONDO:GARD"}
+subset: nord_rare {source="MONDO:NORD"}
+subset: ordo_disorder {source="Orphanet:86850"}
+subset: orphanet_rare {source="Orphanet:86850"}
+subset: otar {source="MONDO:OTAR"}
+subset: rare
+synonym: "chloroma" EXACT [DOID:8683, ICD10CM:C92.3, icd11.foundation:1988933820, NCIT:C3520, Orphanet:86850]
+synonym: "extramedullary myeloid tumor" EXACT [DOID:8683, NCIT:C3520, Orphanet:86850]
+synonym: "extramedullary myeloid tumour" EXACT OMO:0003005 []
+synonym: "MS" RELATED ABBREVIATION [ONCOTREE:MS]
+synonym: "myeloid sarcoma" EXACT [DOID:8683, ICD10CM:C92.3, icd11.foundation:1988933820, MONDO:0019459, NCIT:C3520, Orphanet:86850]
+synonym: "sarcoma, myeloid, malignant" EXACT [NCIT:C3520]
+xref: DOID:8683 {source="EFO:1001052", source="MONDO:equivalentTo"}
+xref: EFO:1001052 {source="MONDO:equivalentTo", source="MONDO:EFO"}
+xref: GARD:0012763 {source="MONDO:GARD"}
+xref: ICD10CM:C92.3 {source="Orphanet:86850", source="EFO:1001052", source="MONDO:equivalentTo", source="DOID:8683"}
+xref: icd11.foundation:1988933820 {source="Orphanet:86850", source="MONDO:equivalentTo"}
+xref: icd11.foundation:921720320 {source="MONDO:equivalentTo"}
+xref: ICD9:205.3 {source="EFO:1001052", source="DOID:8683"}
+xref: ICDO:9930/3 {source="NCIT:C3520"}
+xref: MedDRA:10028562 {source="EFO:1001052"}
+xref: MEDGEN:1656669 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: MESH:D023981 {source="Orphanet:86850", source="EFO:1001052", source="MONDO:equivalentTo", source="Orphanet:86850/e", source="DOID:8683"}
+xref: NCIT:C3520 {source="EFO:1001052", source="MONDO:equivalentTo", source="DOID:8683"}
+xref: ONCOTREE:MS {source="MONDO:equivalentTo"}
+xref: Orphanet:86850 {source="MONDO:equivalentTo"}
+xref: UMLS:C4721505 {source="MONDO:equivalentTo", source="MONDO:MEDGEN", source="MEDGEN:1656669"}
+is_a: MONDO:0005089 {source="EFO:1001052", source="MESH:D023981"} ! sarcoma
+is_a: MONDO:0015667 {source="Orphanet:86850"} ! acute myeloid leukemia by FAB classification
+relationship: disease_has_location CL:0000763 {source="EFO:0000784"} ! myeloid cell
+property_value: curated_content_resource "https://www.malacards.org/card/myeloid_sarcoma" xsd:anyURI {source="MONDO:MalaCards"}
+property_value: skos:closeMatch MEDDRA:10028562
+property_value: skos:exactMatch DOID:8683
+property_value: skos:exactMatch EFO:1001052
+property_value: skos:exactMatch icd10cm:C92.3
+property_value: skos:exactMatch icd11.foundation:1988933820
+property_value: skos:exactMatch icd11.foundation:921720320
+property_value: skos:exactMatch MEDGEN:1656669
+property_value: skos:exactMatch MESH:D023981
+property_value: skos:exactMatch NCIT:C3520
+property_value: skos:exactMatch Orphanet:86850
+property_value: skos:exactMatch UMLS:C4721505
+
+[Term]
+id: MONDO:0008814
+name: arginase deficiency
+def: "Arginase deficiency is a rare autosomal recessive amino acid metabolism disorder characterized clinically by variable degrees of hyperammonemia, developing from about 3 years of age, and leading to progressive loss of developmental milestones and spasticity in the absence of treatment." [Orphanet:90]
+subset: clingen {source="MONDO:CLINGEN"}
+subset: gard_rare {source="GARD:0005840", source="MONDO:GARD"}
+subset: ncit_rare {source="NCIT:C84568"}
+subset: nord_rare {source="NORD:801", source="MONDO:NORD"}
+subset: ordo_disorder {source="Orphanet:90"}
+subset: orphanet_rare {source="Orphanet:90"}
+subset: otar {source="MONDO:OTAR"}
+subset: rare
+synonym: "arginase deficiency" EXACT [DOID:9278, icd11.foundation:1619102598, OMIM:207800, Orphanet:90]
+synonym: "Arginase-1 Deficiency" EXACT [NORD:801] {OMO:0002001="https://w3id.org/information-resource-registry/nord"}
+synonym: "argininemia" EXACT [DOID:9278, ICD10CM:E72.21, NCIT:C84568, OMIM:207800, Orphanet:90]
+synonym: "hyperargininemia" EXACT [DOID:9278, NCIT:C84568, OMIM:207800, Orphanet:90] {OMO:0002001="https://w3id.org/information-resource-registry/clingen"}
+xref: DOID:9278 {source="MONDO:equivalentTo"}
+xref: GARD:0005840 {source="MONDO:GARD"}
+xref: ICD10CM:E72.21 {source="https://orcid.org/0009-0001-6494-4831", source="MONDO:equivalentTo", source="https://orcid.org/0000-0002-5002-8648", source="DOID:9278", source="https://orcid.org/0000-0002-1780-5230", source="https://orcid.org/0000-0002-2842-8645"}
+xref: icd11.foundation:1619102598 {source="MONDO:equivalentTo", source="Orphanet:90", source="https://orcid.org/0000-0002-4142-7153"}
+xref: MedDRA:10062695 {source="Orphanet:90", source="Orphanet:90/e"}
+xref: MEDGEN:78688 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: MESH:D020162 {source="MONDO:equivalentTo", source="Orphanet:90", source="DOID:9278", source="Orphanet:90/e"}
+xref: NANDO:1200807 {source="MONDO:NANDO", source="https://orcid.org/0000-0003-0011-764X", source="https://orcid.org/0000-0002-0170-9172"}
+xref: NANDO:2200482 {source="MONDO:NANDO", source="https://orcid.org/0000-0003-0011-764X", source="https://orcid.org/0000-0002-0170-9172"}
+xref: NCIT:C84568 {source="MONDO:equivalentTo", source="DOID:9278"}
+xref: NORD:801 {source="MONDO:NORD"}
+xref: OMIM:207800 {source="MONDO:equivalentTo", source="Orphanet:90", source="DOID:9278", source="Orphanet:90/e"}
+xref: Orphanet:90 {source="MONDO:equivalentTo", source="OMIM:207800"}
+xref: SCTID:23501004 {source="MONDO:equivalentTo", source="DOID:9278"}
+xref: UMLS:C0268548 {source="MONDO:equivalentTo", source="MONDO:MEDGEN", source="MEDGEN:78688"}
+is_a: MONDO:0800153 {source="PMID:33340416"} ! urea cycle disorder or inherited hyperammonemia
+relationship: curated_content_resource https://search.clinicalgenome.org/kb/conditions/MONDO:0008814 {source="MONDO:CLINGEN"}
+relationship: has_material_basis_in_germline_mutation_in http://identifiers.org/hgnc/663 {source="OMIM:207800"} ! ARG1
+property_value: curated_content_resource "https://www.malacards.org/card/argininemia" xsd:anyURI {source="MONDO:MalaCards"}
+property_value: IAO:0000233 "https://github.com/monarch-initiative/mondo/issues/4985" xsd:anyURI
+property_value: IAO:0000233 "https://github.com/monarch-initiative/mondo/issues/9097" xsd:anyURI
+property_value: skos:closeMatch MEDDRA:10062695
+property_value: skos:exactMatch DOID:9278
+property_value: skos:exactMatch icd10cm:E72.21
+property_value: skos:exactMatch icd11.foundation:1619102598
+property_value: skos:exactMatch MEDGEN:78688
+property_value: skos:exactMatch MESH:D020162
+property_value: skos:exactMatch NCIT:C84568
+property_value: skos:exactMatch OMIM:207800
+property_value: skos:exactMatch Orphanet:90
+property_value: skos:exactMatch SCTID:23501004
+property_value: skos:exactMatch UMLS:C0268548
+
+[Term]
+id: MONDO:0011441
+name: complex regional pain syndrome type 1
+def: "Complex regional pain syndrome type 1 (CRPS1) is a form of complex regional pain syndrome in which the pain is disproportionate to any known inciting event and is characterized by continuous pain, allodynia, or hyperalgesia as well as edema, coloration (changes in skin blood flow), or abnormal sudomotor activity in the region of pain. Onset of CRPS1 symptoms may occur within a few days to a month after an injury or trauma to the affected limb." [Orphanet:99995]
+subset: gard_rare {source="GARD:0016928", source="MONDO:GARD"}
+subset: ncit_rare {source="NCIT:C85042"}
+subset: nord_rare {source="MONDO:NORD"}
+subset: ordo_subtype_of_a_disorder {source="Orphanet:99995"}
+subset: otar {source="MONDO:OTAR"}
+subset: rare
+synonym: "Algodystrophy" EXACT [Orphanet:99995]
+synonym: "Complex regional pain syndrome I" EXACT [ICD10CM:G90.5, NCIT:C85042]
+synonym: "complex regional pain syndrome type 1" EXACT [Orphanet:99995]
+synonym: "CRPS I" EXACT [NCIT:C85042]
+synonym: "CRPS1" EXACT ABBREVIATION [https://orcid.org/0000-0002-6601-2165]
+synonym: "reflex neurovascular dystrophy" EXACT [NCIT:C85042]
+synonym: "reflex sympathetic dystrophy" EXACT [DOID:1811, ICD10CM:G90.5, OMIM:604335, Orphanet:99995]
+synonym: "reflex sympathetic dystrophy syndrome" EXACT [NCIT:C85042]
+synonym: "RND" EXACT ABBREVIATION [NCIT:C85042]
+synonym: "RSDS" EXACT ABBREVIATION [NCIT:C85042]
+xref: DOID:1811 {source="EFO:1001147", source="MONDO:equivalentTo"}
+xref: EFO:1001147 {source="MONDO:equivalentTo", source="MONDO:EFO"}
+xref: GARD:0016928 {source="MONDO:GARD"}
+xref: ICD10CM:G90.5 {source="https://orcid.org/0009-0001-6494-4831", source="MONDO:equivalentTo", source="https://orcid.org/0000-0002-5002-8648", source="DOID:1811", source="https://orcid.org/0000-0002-2842-8645"}
+xref: ICD9:337.2 {source="EFO:1001147", source="DOID:1811"}
+xref: ICD9:337.20 {source="MONDO:equivalentTo", source="MONDO:i2s", source="DOID:1811"}
+xref: ICD9:337.21 {source="DOID:1811"}
+xref: ICD9:337.29 {source="MONDO:relatedTo", source="MONDO:i2s"}
+xref: ICD9:733.7 {source="MONDO:equivalentTo", source="MONDO:i2s"}
+xref: MedDRA:10038249 {source="EFO:1001147"}
+xref: MedDRA:10064334 {source="Orphanet:99995", source="Orphanet:99995/e"}
+xref: MEDGEN:11159 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: MESH:D012019 {source="EFO:1001147", source="MONDO:equivalentTo", source="DOID:1811"}
+xref: NCIT:C85042 {source="MONDO:equivalentTo", source="DOID:1811"}
+xref: OMIM:604335 {source="Orphanet:99995", source="MONDO:equivalentTo", source="Orphanet:99995/e", source="DOID:1811"}
+xref: Orphanet:99995 {source="OMIM:604335", source="MONDO:equivalentTo"}
+xref: SCTID:50642008 {source="MONDO:equivalentTo", source="DOID:1811"}
+xref: UMLS:C0034931 {source="MONDO:equivalentTo", source="MONDO:MEDGEN", source="MEDGEN:11159"}
+is_a: MONDO:0002254 {source="NCIT:C85042"} ! syndromic disease
+is_a: MONDO:0019369 {source="DOID:1811", source="MESH:D012019", source="Orphanet:99995"} ! complex regional pain syndrome
+property_value: curated_content_resource "https://www.malacards.org/card/reflex_sympathetic_dystrophy" xsd:anyURI {source="MONDO:MalaCards"}
+property_value: IAO:0000233 "https://github.com/monarch-initiative/mondo/issues/9097" xsd:anyURI
+property_value: skos:closeMatch MEDDRA:10038249
+property_value: skos:closeMatch MEDDRA:10064334
+property_value: skos:exactMatch DOID:1811
+property_value: skos:exactMatch EFO:1001147
+property_value: skos:exactMatch icd10cm:G90.5
+property_value: skos:exactMatch MEDGEN:11159
+property_value: skos:exactMatch MESH:D012019
+property_value: skos:exactMatch NCIT:C85042
+property_value: skos:exactMatch OMIM:604335
+property_value: skos:exactMatch Orphanet:99995
+property_value: skos:exactMatch SCTID:50642008
+property_value: skos:exactMatch UMLS:C0034931
+
+[Term]
+id: MONDO:0018094
+name: Waardenburg syndrome
+def: "A disorder characterized by varying degrees of deafness and minor defects in structures arising from neural crest, including pigmentation anomalies of eyes, hair, and skin. WS is classified into four clinical and genetic phenotypes." [Orphanet:3440]
+subset: clingen {source="MONDO:CLINGEN"}
+subset: doid_rare {source="DOID:9258"}
+subset: gard_rare {source="GARD:0005525", source="MONDO:GARD"}
+subset: ncit_rare {source="NCIT:C85222"}
+subset: nord_rare {source="MONDO:NORD", source="NORD:430"}
+subset: ordo_disorder {source="Orphanet:3440"}
+subset: orphanet_rare {source="Orphanet:3440"}
+subset: otar {source="MONDO:OTAR"}
+subset: rare
+synonym: "Mende syndrome" RELATED [GARD:0005525]
+synonym: "Van der Hoeve Halbertsma Waardenburg Gualdi syndrome" RELATED [GARD:0005525]
+synonym: "Waardenburg syndrome" EXACT [DOID:9258, icd11.foundation:304883627, NCIT:C85222, OMIMPS:193500, Orphanet:3440] {OMO:0002001="https://w3id.org/information-resource-registry/clingen"}
+synonym: "Waardenburg's syndrome" EXACT [doi:10.1093/jama/9780195176339.003.0016, DOID:9258, NCIT:C85222]
+xref: DOID:9258 {source="MONDO:equivalentTo"}
+xref: GARD:0005525 {source="MONDO:GARD"}
+xref: icd11.foundation:304883627 {source="MONDO:equivalentTo"}
+xref: MedDRA:10069203 {source="Orphanet:3440/e", source="Orphanet:3440"}
+xref: MEDGEN:473809 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: MESH:D014849 {source="https://orcid.org/0000-0003-1967-3726", source="Orphanet:3440/e", source="MONDO:equivalentTo", source="DOID:9258", source="Orphanet:3440"}
+xref: NCIT:C85222 {source="MONDO:equivalentTo", source="DOID:9258"}
+xref: NORD:430 {source="MONDO:NORD"}
+xref: OMIMPS:193500 {source="MONDO:equivalentTo", source="DOID:9258"}
+xref: Orphanet:3440 {source="MONDO:equivalentTo", source="DOID:9258"}
+xref: SCTID:715952000 {source="MONDO:equivalentTo"}
+xref: UMLS:C3266898 {source="MONDO:equivalentTo", source="MEDGEN:473809", source="MONDO:MEDGEN"}
+is_a: MONDO:0000426 {source="DOID:9258", source="MONDO:Redundant"} ! autosomal dominant disease
+is_a: MONDO:0002254 {source="DOID:9258", source="MONDO:Redundant", source="NCIT:C85222"} ! syndromic disease
+is_a: MONDO:0015161 {source="Orphanet:3440"} ! multiple congenital anomalies/dysmorphic syndrome without intellectual disability
+relationship: curated_content_resource https://search.clinicalgenome.org/kb/conditions/MONDO:0018094 {source="MONDO:CLINGEN"}
+relationship: disease_has_feature HP:0000486 ! Strabismus
+relationship: disease_has_feature HP:0002226 {source="Orphanet:3440"} ! White eyebrow
+relationship: disease_has_feature HP:0002227 {source="Orphanet:3440"} ! White eyelashes
+relationship: excluded_subClassOf MONDO:0015368 {source="https://orcid.org/0000-0001-5208-3432"} ! obsolete neuro-ophthalmological disease
+relationship: excluded_subClassOf MONDO:0019290 {source="Orphanet:3440", source="https://orcid.org/0000-0001-5208-3432"} ! hypopigmentation of the skin
+relationship: excluded_subClassOf MONDO:0020191 {source="Orphanet:3440", source="https://orcid.org/0000-0001-5208-3432"} ! obsolete eyebrow/eyelashes pigmentation anomaly
+relationship: excluded_subClassOf MONDO:0020276 {source="Orphanet:3440", source="https://orcid.org/0000-0001-5208-3432"} ! obsolete pigmentation disorder with eye involvement, excluding albinism
+relationship: should_conform_to http://purl.obolibrary.org/obo/mondo/patterns/OMIM_phenotypic_series.yaml
+property_value: curated_content_resource "https://www.malacards.org/card/waardenburg_syndrome" xsd:anyURI {source="MONDO:MalaCards"}
+property_value: IAO:0000233 "https://github.com/monarch-initiative/mondo/issues/5682" xsd:anyURI
+property_value: skos:closeMatch MEDDRA:10069203
+property_value: skos:exactMatch DOID:9258
+property_value: skos:exactMatch icd11.foundation:304883627
+property_value: skos:exactMatch MEDGEN:473809
+property_value: skos:exactMatch MESH:D014849
+property_value: skos:exactMatch NCIT:C85222
+property_value: skos:exactMatch OMIMPS:193500
+property_value: skos:exactMatch Orphanet:3440
+property_value: skos:exactMatch SCTID:715952000
+property_value: skos:exactMatch UMLS:C3266898
+
+[Term]
+id: MONDO:0018920
+name: peripartum cardiomyopathy
+def: "Peripartum cardiomyopathy (PPCM) is an idiopathic, potentially fatal form of dilated cardiomyopathy that develops during the final month of pregnancy or within five months after delivery." [Orphanet:563]
+subset: doid_rare {source="DOID:9997"}
+subset: gard_rare {source="GARD:0000220", source="MONDO:GARD"}
+subset: nord_rare {source="MONDO:NORD"}
+subset: ordo_disorder {source="Orphanet:563"}
+subset: orphanet_rare {source="Orphanet:563"}
+subset: otar {source="MONDO:OTAR"}
+subset: rare
+synonym: "Meadows' syndrome" RELATED [GARD:0000220]
+synonym: "peripartum cardiomyopathy" EXACT [DOID:9997, ICD10CM:O90.3, MONDO:0005199, NCIT:C171602, Orphanet:563]
+synonym: "postpartum cardiomyopathy" EXACT [GARD:0000220, icd11.foundation:1218807936, Orphanet:563]
+xref: DOID:9997 {source="MONDO:equivalentTo", source="EFO:0002628"}
+xref: EFO:0002628 {source="MONDO:equivalentTo", source="MONDO:EFO"}
+xref: GARD:0000220 {source="MONDO:GARD"}
+xref: ICD10CM:O90.3 {source="DOID:9997", source="Orphanet:563/e", source="MONDO:equivalentTo", source="https://orcid.org/0000-0002-1780-5230", source="https://orcid.org/0000-0002-2842-8645", source="Orphanet:563"}
+xref: icd11.foundation:1218807936 {source="MONDO:equivalentTo", source="Orphanet:563", source="https://orcid.org/0000-0002-4142-7153"}
+xref: ICD9:674.5 {source="DOID:9997", source="EFO:0002628"}
+xref: ICD9:674.54 {source="MONDO:equivalentTo", source="MONDO:i2s"}
+xref: MedDRA:10049430 {source="Orphanet:563/e", source="Orphanet:563"}
+xref: MEDGEN:163756 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: NCIT:C171602 {source="MONDO:equivalentTo"}
+xref: Orphanet:563 {source="GARD:0000220", source="MONDO:equivalentTo"}
+xref: SCTID:62377009 {source="MONDO:equivalentTo", source="EFO:0002628"}
+xref: UMLS:C0877208 {source="MONDO:equivalentTo", source="MONDO:MEDGEN", source="MEDGEN:163756"}
+is_a: MONDO:0016338 {source="Orphanet:563"} ! non-familial dilated cardiomyopathy
+is_a: MONDO:0024575 {source="Orphanet:563"} ! pregnancy disorder
+property_value: skos:closeMatch MEDDRA:10049430
+property_value: skos:exactMatch DOID:9997
+property_value: skos:exactMatch EFO:0002628
+property_value: skos:exactMatch icd10cm:O90.3
+property_value: skos:exactMatch icd11.foundation:1218807936
+property_value: skos:exactMatch MEDGEN:163756
+property_value: skos:exactMatch NCIT:C171602
+property_value: skos:exactMatch Orphanet:563
+property_value: skos:exactMatch SCTID:62377009
+property_value: skos:exactMatch UMLS:C0877208
+
+[Term]
+id: MONDO:0020074
+name: progressive myoclonus epilepsy
+def: "A rare group of disorders characterized by the development of myoclonic and tonic-clonic epileptic seizures associated with progressive degeneration of the nervous system." [NCIT:C7636]
+subset: clingen {source="MONDO:CLINGEN"}
+subset: disease_grouping
+subset: doid_rare {source="DOID:891"}
+subset: gard_rare {source="GARD:0007140", source="MONDO:GARD"}
+subset: nord_rare {source="NORD:1617", source="MONDO:NORD"}
+subset: ordo_group_of_disorders {source="Orphanet:98261"}
+subset: otar {source="MONDO:OTAR"}
+subset: rare
+synonym: "epilepsy, progressive myoclonic" EXACT [OMIMPS:254800]
+synonym: "familial progressive myoclonic epilepsy" RELATED [GARD:0007140]
+synonym: "PME" EXACT ABBREVIATION [DOID:891, Orphanet:98261]
+synonym: "progressive myoclonic epilepsy" EXACT [DOID:891, icd11.foundation:173613583, Orphanet:98261]
+synonym: "progressive myoclonic epilepsy (disorder) [ambiguous]" EXACT []
+synonym: "progressive myoclonus epilepsy" EXACT [DOID:891, MONDO:0004676, NCIT:C7636, Orphanet:98261] {OMO:0002001="https://w3id.org/information-resource-registry/clingen"}
+xref: DOID:891 {source="MONDO:equivalentTo"}
+xref: GARD:0007140 {source="MONDO:GARD"}
+xref: icd11.foundation:173613583 {source="MONDO:equivalentTo", source="https://orcid.org/0000-0001-5208-3432", source="Orphanet:98261"}
+xref: MEDGEN:199732 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: MESH:D020191 {source="Orphanet:98261/e", source="MONDO:equivalentTo", source="DOID:891", source="Orphanet:98261"}
+xref: NANDO:1200953 {source="MONDO:NANDO", source="https://orcid.org/0000-0003-0011-764X", source="https://orcid.org/0000-0002-0170-9172"}
+xref: NANDO:2100237 {source="MONDO:NANDO", source="https://orcid.org/0000-0003-0011-764X", source="https://orcid.org/0000-0002-0170-9172"}
+xref: NCIT:C7636 {source="MONDO:equivalentTo", source="DOID:891"}
+xref: NORD:1617 {source="MONDO:NORD"}
+xref: OMIMPS:254800 {source="MONDO:equivalentTo", source="https://orcid.org/0000-0002-6601-2165"}
+xref: Orphanet:98261 {source="MONDO:equivalentTo"}
+xref: SCTID:267581004 {source="MONDO:equivalentTo", source="DOID:891"}
+xref: UMLS:C0751778 {source="MONDO:equivalentTo", source="MONDO:MEDGEN", source="MEDGEN:199732"}
+is_a: MONDO:0100545 ! hereditary neurological disease
+is_a: MONDO:0100577 {source="https://orcid.org/0000-0001-5208-3432"} ! myoclonic epilepsy
+is_a: MONDO:0800495 {source="https://www.epilepsydiagnosis.org/syndrome/pme-overview.html"} ! variable-age epilepsy syndrome with developmental and/or epileptic encephalopathy or progressive neurological deterioration
+relationship: curated_content_resource https://search.clinicalgenome.org/kb/conditions/MONDO:0020074 {source="MONDO:CLINGEN"}
+relationship: excluded_subClassOf MONDO:0020072 {source="Orphanet:98261", source="https://orcid.org/0000-0001-5208-3432"} ! childhood-onset epilepsy syndrome
+relationship: excluded_subClassOf MONDO:0020073 {source="Orphanet:98261", source="https://orcid.org/0000-0001-5208-3432"} ! obsolete adolescent-onset epilepsy syndrome
+relationship: should_conform_to http://purl.obolibrary.org/obo/mondo/patterns/OMIM_phenotypic_series.yaml
+property_value: curated_content_resource "https://www.malacards.org/card/progressive_myoclonus_epilepsy" xsd:anyURI {source="MONDO:MalaCards"}
+property_value: IAO:0000233 "https://github.com/monarch-initiative/mondo/issues/8602" xsd:anyURI
+property_value: skos:exactMatch DOID:891
+property_value: skos:exactMatch icd11.foundation:173613583
+property_value: skos:exactMatch MEDGEN:199732
+property_value: skos:exactMatch MESH:D020191
+property_value: skos:exactMatch NCIT:C7636
+property_value: skos:exactMatch OMIMPS:254800
+property_value: skos:exactMatch Orphanet:98261
+property_value: skos:exactMatch SCTID:267581004
+property_value: skos:exactMatch UMLS:C0751778
+
+[Term]
+id: MONDO:0020572
+name: complex regional pain syndrome type 2
+def: "Complex regional pain syndrome type 2 (CRPS2), or causalgia is a form of complex regional pain syndrome that develops after damage to a peripheral nerve and is characterized by spontaneous pain, allodynia and hyperalgesia, not necessarily limited to the territory of the injured nerve, as well as at some point, edema, changes in skin blood flow or sudomotor dysfunction in the pain area." [Orphanet:99994]
+subset: gard_rare {source="GARD:0019727", source="MONDO:GARD"}
+subset: ncit_rare {source="NCIT:C121572"}
+subset: nord_rare {source="MONDO:NORD"}
+subset: ordo_subtype_of_a_disorder {source="Orphanet:99994"}
+subset: otar {source="MONDO:OTAR"}
+subset: rare
+synonym: "causalgia" EXACT [DOID:3222, MONDO:0006691, NCIT:C121572, Orphanet:99994]
+synonym: "Complex regional pain syndrome II" EXACT [NCIT:C121572]
+synonym: "CRPS II" EXACT [NCIT:C121572]
+xref: DOID:3222 {source="MONDO:equivalentTo", source="EFO:1000854"}
+xref: EFO:1000854 {source="MONDO:equivalentTo", source="MONDO:EFO"}
+xref: GARD:0019727 {source="MONDO:GARD"}
+xref: MedDRA:10007825 {source="EFO:1000854"}
+xref: MedDRA:10064335 {source="Orphanet:99994", source="Orphanet:99994/e"}
+xref: MEDGEN:2918 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: MESH:D002422 {source="DOID:3222", source="MONDO:equivalentTo", source="EFO:1000854"}
+xref: NCIT:C121572 {source="DOID:3222", source="MONDO:equivalentTo"}
+xref: Orphanet:99994 {source="MONDO:equivalentTo"}
+xref: SCTID:408751001 {source="DOID:3222", source="MONDO:equivalentTo"}
+xref: UMLS:C0007462 {source="MEDGEN:2918", source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+is_a: MONDO:0002254 {source="NCIT:C121572"} ! syndromic disease
+is_a: MONDO:0019369 {source="DOID:3222", source="MESH:D002422", source="Orphanet:99994"} ! complex regional pain syndrome
+property_value: curated_content_resource "https://www.malacards.org/card/causalgia" xsd:anyURI {source="MONDO:MalaCards"}
+property_value: skos:closeMatch MEDDRA:10007825
+property_value: skos:closeMatch MEDDRA:10064335
+property_value: skos:exactMatch DOID:3222
+property_value: skos:exactMatch EFO:1000854
+property_value: skos:exactMatch MEDGEN:2918
+property_value: skos:exactMatch MESH:D002422
+property_value: skos:exactMatch NCIT:C121572
+property_value: skos:exactMatch Orphanet:99994
+property_value: skos:exactMatch SCTID:408751001
+property_value: skos:exactMatch UMLS:C0007462
+
+[Term]
+id: MONDO:0979883
+name: cranioectodermal dysplasia 6
+subset: gard_rare {source="GARD:0028127", source="MONDO:GARD"}
+subset: rare
+xref: GARD:0028127 {source="MONDO:GARD"}
+xref: MEDGEN:1887827 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: OMIM:621337 {source="MONDO:equivalentTo"}
+xref: UMLS:C6024436 {source="MEDGEN:1887827", source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+is_a: MONDO:0009032 {source="OMIM:621337", source="https://orcid.org/0000-0002-4142-7153"} ! cranioectodermal dysplasia
+relationship: has_material_basis_in_germline_mutation_in http://identifiers.org/hgnc/21219 {source="OMIM:621337"} ! CILK1
+property_value: skos:exactMatch MEDGEN:1887827
+property_value: skos:exactMatch OMIM:621337
+property_value: skos:exactMatch UMLS:C6024436
+
+[Term]
+id: MONDO:1060185
+name: systemic lupus erythematosus 18
+def: "Any systemic lupus erythematosus in which the cause of the disease is a variation in the PLD4 gene." [https://clinicalgenome.org/affiliation/40123/, https://orcid.org/0000-0003-1738-6117, MONDO:patterns/disease_series_by_gene, OMIM:621369]
+subset: gard_rare {source="GARD:0028184", source="MONDO:GARD"}
+subset: rare
+synonym: "SLEB18" EXACT ABBREVIATION [OMIM:621369]
+synonym: "systemic lupus erythematosus related to PLD4" EXACT [https://clinicalgenome.org/affiliation/40123/] {OMO:0002001="https://w3id.org/information-resource-registry/clingen"}
+xref: GARD:0028184 {source="MONDO:GARD"}
+xref: MEDGEN:1896189 {source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+xref: OMIM:621369 {source="MONDO:equivalentTo"}
+xref: UMLS:C6065960 {source="MEDGEN:1896189", source="MONDO:equivalentTo", source="MONDO:MEDGEN"}
+is_a: MONDO:0007915 {source="OMIM:621369", source="https://clinicalgenome.org/affiliation/40123/", source="https://orcid.org/0000-0003-1738-6117"} ! systemic lupus erythematosus
+intersection_of: MONDO:0007915 ! systemic lupus erythematosus
+intersection_of: has_material_basis_in_germline_mutation_in http://identifiers.org/hgnc/23792 ! PLD4
+relationship: has_material_basis_in_germline_mutation_in http://identifiers.org/hgnc/23792 {source="OMIM:621369", source="https://clinicalgenome.org/affiliation/40123/", source="https://orcid.org/0000-0003-1738-6117"} ! PLD4
+property_value: IAO:0000233 "https://github.com/monarch-initiative/mondo/issues/9683" xsd:anyURI
+property_value: skos:exactMatch MEDGEN:1896189
+property_value: skos:exactMatch OMIM:621369
+property_value: skos:exactMatch UMLS:C6065960
+property_value: terms:creator https://orcid.org/0000-0002-7638-4659

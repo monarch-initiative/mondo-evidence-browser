@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mondo-evidence-browser",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "mondo-evidence-browser", "serve", "--port", "8765"],
+      "port": 8765
+    }
+  ]
+}

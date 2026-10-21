@@ -1,0 +1,25 @@
+# Agent registry (D-049, D-052): people and organisations whose judgement counts as
+# evidence, with a role and a dated trust level. `can_sign_off: true` lets a person
+# sign off statements in the browser once they log in with that ORCID.
+#
+# Josiah Carberry is ORCID's official fictitious test person; replace him with real
+# curators before use.
+
+agents:
+  "ORCID:0000-0002-1825-0097":
+    name: Josiah Carberry
+    kind: person
+    role: core curator (example)
+    can_sign_off: true
+    trust: [{value: 0.85, since: 2026-01-01}]
+  # A sandbox.orcid.org account, for testing login and sign-off locally.
+  "ORCID:0009-0001-1754-9409":
+    name: Sandbox test curator
+    kind: person
+    role: core curator (sandbox test)
+    can_sign_off: true
+    trust: [{value: 0.85, since: 2026-01-01}]
+  "mondo:consortium":
+    name: Mondo Disease Ontology Consortium
+    kind: organisation
+    trust: [{value: 1.0, since: 2020-01-01}]

@@ -1,0 +1,69 @@
+# Mondo inclusion score (requirement D-063), skeleton implementation.
+#
+#   per line i:  w_i = d_i * s_i * q_i * c_i
+#     d  direction: supports +1, disputes -1; neutral lines are excluded
+#     s  strength of this kind of evidence for this claim type (D-054)
+#     q  source prior: resource/item quality (D-060) for evidence about the world,
+#        agent trust (D-049, D-052) for judgement lines
+#     c  confidence = data quality (D-062); below the floor the line is excluded,
+#        above it c discounts the line multiplicatively (Q1)
+#   dependence: only the strongest line per independence cluster counts (D-046)
+#   judgement lines are capped at trust * strength of the evidence they rest on (Q5)
+#   L = L0 + k * sum(w);  S = tanh(L / 2) in (-1, 1)
+#
+# CALIBRATION IS A DESIGN TASK (D-063). Every number below is a placeholder chosen to
+# make the worked examples in the requirements come out sensibly; none is measured.
+# Change the version whenever a number changes: stored scores and sign-offs record it.
+
+id: mondo-inclusion-score
+version: 0.1.0-uncalibrated
+
+# k = 4 makes one current authoritative source near-conclusive for a synonym (D-054:
+# OMIM alone gives S = tanh(4 * 0.8 * 0.95 / 2) = 0.92).
+k: 4.0
+
+confidence_floor: 0.5
+# No source records confidence yet (no resolution chains, D-061), so lines are
+# assumed to be read correctly. Shown with basis PRIOR wherever it is used.
+default_confidence: 1.0
+
+# Quality for a resource missing from config/resources.yaml.
+default_resource_quality: 0.5
+
+# Agent trust when an agent is not in config/agents.yaml but its line carries a
+# SIEVE trust_level.
+trust_levels:
+  community: 0.5
+  domain_expert: 0.7
+  curator: 0.85
+  authority: 1.0
+
+judgement_kinds: [expert_judgement, organisational_decision]
+
+claim_types:
+  C003:  # synonym (all scopes)
+    strengths:
+      concordance: 0.8          # "a source lists it" (D-063 Q2 example)
+      document: 0.8
+      candidate_reference: 0.3  # PMID found in annotations, not verified
+      expert_judgement: 0.6     # "an expert judges it" (D-063 Q2 example)
+      organisational_decision: 0.6
+    # Claim prior L0 (log-odds) per proposing channel (Q3). Unmeasured: 0 everywhere.
+    priors:
+      default: 0.0
+  C004:  # subclass placement
+    strengths:
+      concordance: 0.6
+      document: 0.6
+      candidate_reference: 0.2
+      expert_judgement: 0.6
+      organisational_decision: 0.6
+    priors:
+      default: 0.0
+
+bands:
+  - {min: 0.8, label: strong support}
+  - {min: 0.4, label: moderate support}
+  - {min: -0.4, label: uncertain}
+  - {min: -0.8, label: moderate dispute}
+  - {min: -1.0, label: strong dispute}

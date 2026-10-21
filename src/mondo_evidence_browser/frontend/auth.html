@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Logging in</title>
+  <link rel="stylesheet" href="assets/app.css">
+  <script type="module">
+    import { completeLogin } from "./assets/auth.js";
+    const result = completeLogin();
+    if (result.back) {
+      location.replace(result.back);
+    } else {
+      document.getElementById("status").textContent = result.error;
+      document.getElementById("status").classList.add("error");
+    }
+  </script>
+</head>
+<body>
+<main class="wrap">
+  <p id="status" class="status">Logging in…</p>
+  <p><a href="index.html">Back to the records</a></p>
+</main>
+</body>
+</html>

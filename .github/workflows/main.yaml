@@ -1,0 +1,91 @@
+# Lint, test and browser smoke tests on every push and pull request.
+---
+name: Build and test
+
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_COLOR: "1"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Install project
+        run: uv sync --group dev
+      - name: pre-commit
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+      - name: mypy
+        run: uv run mypy src tests
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install project
+        run: |
+          uv sync --group dev
+          npm ci
+      - name: Tests and doctests (incl. the schema-swap build test)
+        run: uv run pytest -m "not browser"
+
+  smoke:
+    # Builds real sites, serves them with the real service, and drives Chromium:
+    # rendering from the spec, lazy sorted reads, deep links, ORCID login, sign-off,
+    # and rendering under a swapped-in schema.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install project and browser
+        run: |
+          uv sync --group dev
+          npm ci
+          uv run playwright install --with-deps chromium
+      - name: Browser smoke tests
+        run: uv run pytest -m browser --tracing retain-on-failure
+      - name: Keep traces of failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/

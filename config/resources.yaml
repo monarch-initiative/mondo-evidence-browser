@@ -1,0 +1,25 @@
+# Resource registry (D-055, D-060): quality of each information resource, dated so a
+# re-rating never rewrites past scores, and which resources derive from which (D-046).
+#
+# Quality values are placeholders. The OMIM / Orphanet / DOID values are mondo-ai's
+# per-source reliability weights (pipeline.py), not a calibrated rating.
+
+resources:
+  omim:
+    name: OMIM
+    quality: [{value: 0.95, since: 2026-01-01}]
+  ordo:
+    name: Orphanet (ORDO)
+    quality: [{value: 0.90, since: 2026-01-01}]
+  doid:
+    name: Disease Ontology
+    quality: [{value: 0.85, since: 2026-01-01}]
+    # D-046 names DOID as derived from OMIM: their agreement is not independent.
+    derived_from: [omim]
+  pubmed:
+    name: PubMed
+    quality: [{value: 0.7, since: 2026-01-01}]
+  wikipedia:
+    name: Wikipedia
+    quality: [{value: 0.4, since: 2026-01-01}]
+    aliases: [en.wikipedia.org]

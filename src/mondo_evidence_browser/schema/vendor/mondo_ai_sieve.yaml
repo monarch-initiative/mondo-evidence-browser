@@ -1,0 +1,234 @@
+id: https://w3id.org/monarch-initiative/mondo-ai
+name: mondo_ai_sieve
+title: MondoAI Data Model (SIEVE-based)
+description: >-
+  Data models for AI-assisted evidence-driven sync pipeline for curating
+  content into the Mondo disease ontology. Based on SIEVE/SEPIO evidence framework.
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  mondoai: https://w3id.org/monarch-initiative/mondo-ai/
+  sieve: https://w3id.org/sieve/
+  sepio: https://w3id.org/sepio/
+  MONDO: http://purl.obolibrary.org/obo/MONDO_
+  OMIM: https://omim.org/entry/
+  Orphanet: http://www.orpha.net/ORDO/Orphanet_
+  DOID: http://purl.obolibrary.org/obo/DOID_
+  eco: http://purl.obolibrary.org/obo/ECO_
+  oio: http://www.geneontology.org/formats/oboInOwl#
+  IAO: http://purl.obolibrary.org/obo/IAO_
+  rdfs: http://www.w3.org/2000/01/rdf-schema#
+  skos: http://www.w3.org/2004/02/skos/core#
+
+imports:
+  - linkml:types
+  - sieve
+
+default_range: string
+default_prefix: mondoai
+
+
+# =============================================================================
+# CLASSES - Mondo-AI specific (not in SIEVE)
+# =============================================================================
+
+classes:
+
+  # ---------------------------------------------------------------------------
+  # Resource Extraction Models (internal to mondo-ai)
+  # ---------------------------------------------------------------------------
+
+  ResourceSnapshot:
+    description: >-
+      Extracted content from a source ontology at a specific version.
+    attributes:
+      resource_id:
+        identifier: true
+        range: uriorcurie
+        description: Unique identifier for this resource (e.g., "omim", "ordo", "doid")
+      resource_name:
+        range: string
+        description: Human-readable name of the resource
+      resource_url:
+        range: uri
+        description: URL where the resource was downloaded from
+      version:
+        range: string
+        description: Version identifier of the source
+      generated_at:
+        range: datetime
+        description: Timestamp when this snapshot was generated
+      checksum:
+        range: string
+        description: SHA256 checksum of the source file
+      entity_count:
+        range: integer
+        description: Number of entities in this snapshot
+      entities:
+        multivalued: true
+        range: EntitySnapshot
+        inlined_as_list: true
+        description: List of extracted entities
+
+  EntitySnapshot:
+    description: Extracted entity data from a source ontology.
+    attributes:
+      id:
+        identifier: true
+        range: uriorcurie
+        description: Source entity identifier (e.g., OMIM:123456)
+      label:
+        range: string
+        description: Primary label/name of the entity
+      synonyms:
+        multivalued: true
+        range: Synonym
+        inlined_as_list: true
+        description: List of synonyms for this entity
+      definition:
+        range: string
+        description: Definition text
+      parents:
+        multivalued: true
+        range: uriorcurie
+        description: Direct parent entity IDs (rdfs:subClassOf)
+      mappings:
+        multivalued: true
+        range: EntityMapping
+        inlined_as_list: true
+        description: Cross-references and mappings to other ontologies
+      deprecated:
+        range: boolean
+        description: Whether this entity is deprecated/obsolete
+      definition_orcids:
+        range: string
+        multivalued: true
+        description: ORCID identifiers found in definition sources
+      definition_pmids:
+        range: string
+        multivalued: true
+        description: PMID identifiers found in definition sources
+
+  TextMiningResult:
+    is_a: SieveDataItem
+    description: >-
+      Evidence extracted from document text by a text-mining or LLM pipeline
+      (the SIEVE "C" shape). Inherits `value` (the extracted span text) from
+      DataItem and `rating`/`eco_code`/`eco_label` from the CuratedEvidence
+      mixin. Every extraction slot below is optional, so an instance with only
+      `value` is indistinguishable from a plain evidence item -- "A stays valid".
+    attributes:
+      extraction_score:
+        range: float
+        minimum_value: 0
+        maximum_value: 1
+        description: Confidence of the extraction (0-1).
+      document_section:
+        range: string
+        description: The document section the span was drawn from (e.g. "Abstract").
+      text_location:
+        range: string
+        description: Location of the span within the document (free-text for now).
+      extraction_method:
+        range: string
+        description: The method or model that produced the extraction.
+
+
+  Synonym:
+    description: A synonym with scope and source information.
+    attributes:
+      value:
+        range: string
+        required: true
+        description: The synonym text
+      scope:
+        range: SynonymScope
+        description: Scope of the synonym (exact, narrow, broad, related)
+      type:
+        range: string
+        description: Type of synonym (e.g., acronym, abbreviation)
+      source:
+        range: uriorcurie
+        description: Source of this synonym assertion
+      orcids:
+        range: string
+        multivalued: true
+        description: ORCID identifiers found in annotation sources
+      pmids:
+        range: string
+        multivalued: true
+        description: PMID identifiers found in annotation sources
+
+  EntityMapping:
+    description: A mapping/cross-reference to another ontology entity.
+    attributes:
+      object_id:
+        range: uriorcurie
+        required: true
+        description: Target entity ID
+      predicate_id:
+        range: uriorcurie
+        description: Mapping predicate (e.g., skos:exactMatch)
+      mapping_source:
+        range: string
+        description: Source of this mapping
+
+
+
+# =============================================================================
+# ENUMS - Mondo-AI specific
+# =============================================================================
+
+enums:
+
+  SynonymScope:
+    description: Scope of a synonym assertion.
+    permissible_values:
+      EXACT:
+        description: Exact synonym (oio:hasExactSynonym)
+      NARROW:
+        description: Narrow synonym (oio:hasNarrowSynonym)
+      BROAD:
+        description: Broad synonym (oio:hasBroadSynonym)
+      RELATED:
+        description: Related synonym (oio:hasRelatedSynonym)
+
+  StatementPredicate:
+    description: >-
+      Type of statement being asserted. These map to SEPIO Coding objects
+      when creating SieveStatement instances.
+    permissible_values:
+      EXACT_SYNONYM:
+        description: Exact synonym assertion
+        meaning: oio:hasExactSynonym
+      NARROW_SYNONYM:
+        description: Narrow synonym assertion
+        meaning: oio:hasNarrowSynonym
+      BROAD_SYNONYM:
+        description: Broad synonym assertion
+        meaning: oio:hasBroadSynonym
+      RELATED_SYNONYM:
+        description: Related synonym assertion
+        meaning: oio:hasRelatedSynonym
+      LABEL:
+        description: Primary label assertion
+        meaning: rdfs:label
+      DEFINITION:
+        description: Definition text assertion
+        meaning: IAO:0000115
+      PARENT:
+        description: rdfs:subClassOf parent assertion
+        meaning: rdfs:subClassOf
+
+  RecommendedAction:
+    description: AI-recommended action for a statement.
+    permissible_values:
+      ADD:
+        description: Recommend adding this statement to Mondo
+      CONFIRM:
+        description: Confirm existing assertion is correct
+      REJECT:
+        description: Recommend rejecting this statement
+      REVIEW:
+        description: Requires human review (uncertain)
+
