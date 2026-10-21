@@ -106,6 +106,10 @@ class LookupWriter:
         return shards
 
 
+class LookupUnavailable(Exception):
+    """The lookups cannot be read: a wrong base URL, or a failing data host."""
+
+
 class ShardLookup:
     """Read lookups from a folder or a base URL, caching each shard for ``ttl`` seconds."""
 
@@ -125,16 +129,26 @@ class ShardLookup:
         )
         self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
 
-    def _fetch(self, name: str) -> dict[str, Any]:
+    def _fetch(self, name: str, required: bool = False) -> dict[str, Any]:
+        """Read one file; a missing shard is empty, a missing ``required`` file is an error."""
         if isinstance(self.base, Path):
             path = self.base / name
-            content = path.read_bytes() if path.exists() else b"{}"
+            if not path.exists():
+                if required:
+                    raise LookupUnavailable(f"{path} does not exist")
+                return {}
+            content = path.read_bytes()
         else:
             assert self._client is not None
-            response = self._client.get(self.base.rstrip("/") + "/" + name)
-            if response.status_code == 404:
+            url = self.base.rstrip("/") + "/" + name
+            try:  # the data host is an external system
+                response = self._client.get(url)
+            except httpx.HTTPError as error:
+                raise LookupUnavailable(f"{url}: {error}") from error
+            if response.status_code == 404 and not required:
                 return {}
-            response.raise_for_status()
+            if response.status_code != 200:
+                raise LookupUnavailable(f"{url}: HTTP {response.status_code}")
             content = response.content
         # A host may already have unpacked a .gz file on the way (Content-Encoding).
         if content[:2] == b"\x1f\x8b":
@@ -160,8 +174,8 @@ class ShardLookup:
         self._cache.pop(shard_of(key), None)
 
     def meta(self) -> dict[str, Any]:
-        """Build metadata written next to the shards."""
-        return self._fetch("meta.json")
+        """Build metadata written next to the shards; raises LookupUnavailable if absent."""
+        return self._fetch("meta.json", required=True)
 
     def note_status(self, record: Mapping[str, Any], status: str) -> None:
         """Lookups are rebuilt with the site; nothing to update here."""

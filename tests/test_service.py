@@ -200,7 +200,7 @@ def _static(directory: Path) -> Any:
 def test_stateless_service_uses_lookups_and_a_github_decision_store(
     settings: ServiceSettings, tmp_path: Path
 ) -> None:
-    """How it runs in a Hugging Face Space: no index, no local log, nothing on disk."""
+    """How it runs on Vercel: no index, no local log, nothing on disk."""
     from tests.github_api import REPO, TOKEN, FakeContentsAPI
 
     assert settings.site_dir is not None
@@ -281,3 +281,59 @@ def test_stateless_service_reports_github_failures(
     )
     assert response.status_code == 503
     assert "401" in response.json()["detail"]
+
+
+def _stateless_client(tmp_path: Path, lookup_url: str, transport: Any) -> TestClient:
+    from tests.github_api import REPO, TOKEN, FakeContentsAPI
+
+    stateless = ServiceSettings(
+        index_path=tmp_path / "none.db",
+        decisions_path=tmp_path / "none.jsonl",
+        config_dir=CONFIG,
+        orcid_client_id=CLIENT_ID,
+        orcid_base_url=ORCID_BASE,
+        lookup_url=lookup_url,
+        decisions_repo=REPO,
+        github_token=TOKEN,
+    )
+    return TestClient(
+        create_service(
+            stateless,
+            orcid_transport=jwks_endpoint(),
+            lookup_transport=transport,
+            github_transport=FakeContentsAPI().transport(),
+        )
+    )
+
+
+def test_health_says_which_lookup_url_is_missing(tmp_path: Path) -> None:
+    """A wrong MEB_LOOKUP_URL must be obvious from /api/health, not a bare 500."""
+    url = "https://data.example.org/wrong/lookup/"
+    client = _stateless_client(tmp_path, url, _static(tmp_path / "nothing-here"))
+    response = client.get("/api/health")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "unavailable"
+    assert f"{url}meta.json" in body["detail"] and "404" in body["detail"]
+
+
+def test_health_reports_a_failing_data_host(settings: ServiceSettings, tmp_path: Path) -> None:
+    import httpx
+
+    def refuse(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429)
+
+    client = _stateless_client(
+        tmp_path, "https://data.example.org/lookup/", httpx.MockTransport(refuse)
+    )
+    response = client.get("/api/health")
+    assert response.status_code == 503 and "429" in response.json()["detail"]
+    record = client.get(f"/api/records/{PACKET}")
+    assert record.status_code == 503 and "429" in record.json()["detail"]
+
+
+def test_health_names_the_lookup_url_it_reads(settings: ServiceSettings, tmp_path: Path) -> None:
+    assert settings.site_dir is not None
+    url = "https://data.example.org/lookup/"
+    client = _stateless_client(tmp_path, url, _static(settings.site_dir / "data" / "lookup"))
+    assert client.get("/api/health").json()["lookups"] == url

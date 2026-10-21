@@ -47,7 +47,7 @@ from pydantic import BaseModel
 from mondo_evidence_browser.decision_store import DecisionStoreError, GitHubDecisionStore
 from mondo_evidence_browser.decisions import DecisionLog, Refusal, sign_off
 from mondo_evidence_browser.index import EvidenceIndex
-from mondo_evidence_browser.lookup import IndexSource, ShardLookup
+from mondo_evidence_browser.lookup import IndexSource, LookupUnavailable, ShardLookup
 from mondo_evidence_browser.registry import ORCID_PATTERN, Registry, normalise_orcid
 from mondo_evidence_browser.viewspec import SCHEMA_PATH, build_view_spec
 
@@ -213,11 +213,20 @@ def create_service(
         allow_headers=["Authorization", "Content-Type"],
     )
 
+    @app.exception_handler(LookupUnavailable)
+    def lookups_unavailable(request: Any, error: LookupUnavailable) -> JSONResponse:
+        detail = f"The record lookups cannot be read ({error}); check MEB_LOOKUP_URL."
+        return JSONResponse(
+            {"status": "unavailable", "detail": detail, "lookups": settings.lookup_url},
+            status_code=503,
+        )
+
     @app.get("/api/health")
     def health() -> dict[str, Any]:
         meta = records.meta()
         return {
             "status": "ok",
+            "lookups": settings.lookup_url,
             "records": meta["record_count"],
             "schema_version": meta["schema_version"],
             "mondo_release": meta.get("mondo_release"),
