@@ -4,14 +4,13 @@
 #
 # Repository variables (Settings > Secrets and variables > Actions > Variables), all
 # optional; see DEPLOY.md:
-#   MEB_SERVICE_URL     URL of the sign-off service (the Hugging Face Space)
+#   MEB_SERVICE_URL     URL of the sign-off service (the Vercel deployment)
 #   ORCID_CLIENT_ID     ORCID client id for login
 #   ORCID_BASE_URL      https://orcid.org for production (default: the sandbox)
 #   MEB_DECISIONS_REPO  owner/name of the decisions repository the service writes to
 #   MEB_DATA_REPO       owner/name of a Hugging Face dataset to host the data
-#   MEB_SPACE           owner/name of the Hugging Face Space to rebuild on code changes
 # Repository secret:
-#   HF_TOKEN            Hugging Face token with write access to MEB_DATA_REPO/MEB_SPACE
+#   HF_TOKEN            Hugging Face token with write access to MEB_DATA_REPO
 #
 # Without MEB_DATA_REPO the data is published on Pages itself (fine up to ~600K
 # records; Pages allows 1 GB per site).
@@ -115,23 +114,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-
-  restart-space:
-    # The Space builds the sign-off service from main; rebuild it when the code changes.
-    needs: deploy
-    if: ${{ github.event_name == 'push' && vars.MEB_SPACE != '' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.13"
-      - name: Rebuild the Space
-        env:
-          MEB_SPACE: ${{ vars.MEB_SPACE }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          uv sync --group deploy
-          uv run mondo-evidence-browser restart-space

@@ -170,7 +170,7 @@ step-by-step setup.
 |---|---|---|
 | Site | GitHub Pages | Static; content-hashed asset paths, so a redeploy is never served stale |
 | Data (index + lookup shards) | Pages, or a Hugging Face dataset for 600K+ records | Range requests and CORS, uncompressed; pinned per build |
-| Sign-off service | A free Hugging Face Space (Docker) | Stateless: per-record lookup shards, decisions committed to GitHub |
+| Sign-off service | A free Vercel function (Hobby plan; `app.py`) | Stateless: per-record lookup shards, decisions committed to GitHub |
 | Decisions | A GitHub repository, one file per decision | Append-only, versioned; the build reads it for review statuses |
 | Builds | GitHub Actions ([`pages.yaml`](.github/workflows/pages.yaml)) | On pushes to main, weekly, and on demand |
 

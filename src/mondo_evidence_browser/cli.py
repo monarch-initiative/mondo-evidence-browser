@@ -119,15 +119,3 @@ def publish_hf(
     url = publish(data_dir, repo, build_id, token, keep=keep)
     typer.echo(f"Published {data_dir} to {url}")
     typer.echo(f"Lookups for the sign-off service (MEB_LOOKUP_URL): {lookup_url(repo)}")
-
-
-@app.command(name="restart-space")
-def restart_space_command(
-    space: Annotated[str, typer.Option(envvar="MEB_SPACE", help="Space owner/name")],
-    token: Annotated[str, typer.Option(envvar="HF_TOKEN", help="Hugging Face write token")],
-) -> None:
-    """Rebuild the sign-off service's Space so it runs the latest code."""
-    from mondo_evidence_browser.huggingface import restart_space
-
-    restart_space(space, token)
-    typer.echo(f"Restarting {space}")

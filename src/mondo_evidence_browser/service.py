@@ -7,7 +7,7 @@ ORCID client id), issuer and expiry; checks the curator registry; checks the for
 values against the schema-derived form; and appends the decision to the log.
 
 It can also serve the static site itself, which is how ``just serve`` runs
-everything locally. In a free, stateless deployment (a Hugging Face Space) it keeps
+everything locally. In a free, stateless deployment (a Vercel function, ``app.py``) it keeps
 nothing on disk: records come from the build's lookup shards (``MEB_LOOKUP_URL``) and
 decisions are committed to a GitHub repository (``MEB_DECISIONS_REPO``).
 

@@ -76,10 +76,3 @@ def publish(data_dir: Path, repo: str, build_id: str, token: str, keep: int = 3)
             folder, repo_id=repo, repo_type="dataset", commit_message=f"Prune {folder}"
         )
     return data_url(repo, build_id)
-
-
-def restart_space(space: str, token: str) -> None:
-    """Rebuild a Space (e.g. after a code change on main), so it runs the new code."""
-    from huggingface_hub import HfApi
-
-    HfApi(token=token).restart_space(space, factory_reboot=True)
