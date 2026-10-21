@@ -77,7 +77,8 @@ class ServiceSettings:
         >>> s.allowed_origins, s.orcid_client_id
         (('https://a.org', 'https://b.org'), None)
         """
-        env = os.environ if env is None else env
+        # Values pasted into a host's settings page often carry a space or a newline.
+        env = {k: v.strip() for k, v in (os.environ if env is None else env).items()}
         site = Path(env.get("MEB_SITE", "site"))
         origins = env.get("MEB_ALLOWED_ORIGINS", "")
         return cls(
@@ -147,7 +148,10 @@ class OrcidVerifier:
         except jwt.ExpiredSignatureError:
             return "The ORCID login has expired; log in again."
         except jwt.InvalidAudienceError:
-            return "The ORCID token was issued for another application (audience)."
+            return (
+                "The ORCID token was issued for another application (audience); "
+                f"this service expects ORCID client {self.client_id}."
+            )
         except jwt.InvalidIssuerError:
             return "The ORCID token was not issued by the configured ORCID (issuer)."
         except jwt.InvalidSignatureError:
@@ -232,6 +236,7 @@ def create_service(
             "mondo_release": meta.get("mondo_release"),
             "rule_version": meta.get("rule_version"),
             "orcid": bool(verifier),
+            "orcid_client_id": settings.orcid_client_id,
         }
 
     @app.get("/api/records/{record_id}", response_model=None)

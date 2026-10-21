@@ -337,3 +337,29 @@ def test_health_names_the_lookup_url_it_reads(settings: ServiceSettings, tmp_pat
     url = "https://data.example.org/lookup/"
     client = _stateless_client(tmp_path, url, _static(settings.site_dir / "data" / "lookup"))
     assert client.get("/api/health").json()["lookups"] == url
+
+
+def test_settings_ignore_stray_whitespace_from_pasting() -> None:
+    """Values pasted into a host's settings page often carry a space or a newline."""
+    settings = ServiceSettings.from_env(
+        {
+            "ORCID_CLIENT_ID": " APP-DDVDTWRWPWISP0BC\n",
+            "ORCID_BASE_URL": "https://sandbox.orcid.org/ ",
+            "MEB_LOOKUP_URL": "https://data.example.org/lookup/\n",
+            "MEB_DECISIONS_REPO": " owner/name ",
+            "MEB_GITHUB_TOKEN": "token\n",
+        }
+    )
+    assert settings.orcid_client_id == "APP-DDVDTWRWPWISP0BC"
+    assert settings.orcid_base_url == "https://sandbox.orcid.org"
+    assert settings.lookup_url == "https://data.example.org/lookup/"
+    assert settings.decisions_repo == "owner/name"
+    assert settings.github_token == "token"
+
+
+def test_health_and_audience_errors_name_the_expected_client(client: TestClient) -> None:
+    """So a mismatch between the site's and the service's ORCID client is obvious."""
+    assert client.get("/api/health").json()["orcid_client_id"] == CLIENT_ID
+    response = _post(client, _body(client), token=id_token(aud="APP-SOMEONE-ELSE"))
+    assert response.status_code == 401
+    assert CLIENT_ID in response.json()["detail"]
