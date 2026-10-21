@@ -101,6 +101,8 @@ def _serve(
             orcid_base_url=ORCID_BASE,
             data_url=f"http://127.0.0.1:{data_port}/" if data_port else None,
             data_dir=root / "data-host" if data_port else None,
+            # Like the Pages build: a name whose content type hosts do not recompress.
+            db_file="evidence.sqlite.png" if data_port else "evidence.db",
         )
     )
     data_server = (

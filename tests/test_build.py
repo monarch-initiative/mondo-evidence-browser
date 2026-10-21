@@ -180,3 +180,14 @@ def test_data_url_needs_a_data_dir(tmp_path: Path) -> None:
 
     with pytest.raises(BuildError, match="data_dir"):
         build(config(tmp_path, data_url="https://data.example.org/meb/"))
+
+
+def test_the_published_database_name_can_be_chosen(tmp_path: Path) -> None:
+    """GitHub Pages gzips most file types, which breaks range reads; images it leaves alone."""
+    build(config(tmp_path, db_file="evidence.sqlite.png"))
+    site = tmp_path / "site"
+    db_config = json.loads((site / "config.json").read_text())["db"]
+    assert db_config["url"] == "data/evidence.sqlite.png"
+    published = (site / "data" / "evidence.sqlite.png").read_bytes()
+    assert published == (tmp_path / "var" / "evidence.db").read_bytes()
+    assert not (site / "data" / "evidence.db").exists()

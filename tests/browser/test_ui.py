@@ -297,7 +297,8 @@ def test_data_served_from_another_host(page: Page, external_data_site: Site) -> 
     _open_list(page, site)
     page.goto(f"{site.url}/record.html?id={PACKET}")
     expect(page.locator("h1")).to_have_text("arginase deficiency exact synonym Arginase deficiency")
-    data_requests = [url for url in requests if "evidence.db" in url]
+    data_requests = [url for url in requests if "/evidence." in url]
+    assert any(url.endswith("evidence.sqlite.png") for url in data_requests), data_requests
     assert data_requests
     assert all(not url.startswith(site.url) for url in data_requests), data_requests
 

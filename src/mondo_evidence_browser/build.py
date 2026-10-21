@@ -75,6 +75,11 @@ class BuildConfig:
     as S3-style buckets can. At 600K+ records the index outgrows GitHub Pages."""
     data_dir: Path | None = None
     """Where to write the data files for ``data_url``; required with it."""
+    db_file: str = "evidence.db"
+    """File name the index is published under. GitHub Pages gzips most content types,
+    and a gzipped response breaks range reads; it leaves images alone, so the Pages
+    build publishes it as ``evidence.sqlite.png``. The browser reads raw bytes and
+    never treats it as an image."""
 
 
 @dataclass
@@ -142,16 +147,14 @@ def _vendor(site_dir: Path, node_modules: Path) -> None:
     shutil.copy2(package / "LICENSE", target / "LICENSE")
 
 
-def _publish_db(index_path: Path, data: Path, base_url: str) -> dict[str, Any]:
-    """Copy the index into ``data``, served at ``base_url``; returns the sql.js-httpvfs config.
+def _publish_db(index_path: Path, data: Path, base_url: str, name: str) -> dict[str, Any]:
+    """Copy the index into ``data`` as ``name``, served at ``base_url``.
 
-    A previous ``evidence.db*`` in ``data`` is replaced; nothing else there is touched.
+    Returns the sql.js-httpvfs config. Only the file ``name`` in ``data`` is replaced.
     """
     data.mkdir(parents=True, exist_ok=True)
-    for old in data.glob("evidence.db*"):
-        old.unlink()
-    shutil.copy2(index_path, data / "evidence.db")
-    return {"serverMode": "full", "url": f"{base_url}evidence.db", "requestChunkSize": 4096}
+    shutil.copy2(index_path, data / name)
+    return {"serverMode": "full", "url": f"{base_url}{name}", "requestChunkSize": 4096}
 
 
 def build(cfg: BuildConfig) -> BuildReport:
@@ -211,7 +214,7 @@ def build(cfg: BuildConfig) -> BuildReport:
         data_dir, base_url = cfg.data_dir, cfg.data_url.rstrip("/") + "/"
     else:
         data_dir, base_url = cfg.site_dir / "data", "data/"
-    db_config = _publish_db(cfg.index_path, data_dir, base_url)
+    db_config = _publish_db(cfg.index_path, data_dir, base_url, cfg.db_file)
     site_config = {
         "schema_version": spec["schema"]["version"],
         "db": db_config,

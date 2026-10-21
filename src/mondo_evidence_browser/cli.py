@@ -41,6 +41,13 @@ def build(
     data_dir: Annotated[
         Path | None, typer.Option(help="Where to write the data files for --data-url")
     ] = None,
+    db_file: Annotated[
+        str,
+        typer.Option(
+            envvar="MEB_DB_FILE",
+            help="Published database file name (GitHub Pages: evidence.sqlite.png)",
+        ),
+    ] = "evidence.db",
     orcid_base_url: Annotated[str, typer.Option(envvar="ORCID_BASE_URL")] = (
         "https://sandbox.orcid.org"
     ),
@@ -64,6 +71,7 @@ def build(
                 orcid_base_url=orcid_base_url,
                 data_url=data_url,
                 data_dir=data_dir,
+                db_file=db_file,
             )
         )
     except BuildError as error:

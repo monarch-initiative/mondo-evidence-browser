@@ -122,7 +122,7 @@ function rawValue(value) {
 function renderTable(spec, className, items) {
   const cls = spec.classes[className];
   const slots = cls.slots.filter((s) => items.some((item) => !isEmpty(item?.[s.name])));
-  return el(
+  const wrap = el(
     "div",
     { class: "detail-wrap" },
     el(
@@ -163,6 +163,14 @@ function renderTable(spec, className, items) {
       ),
     ),
   );
+  // Stack rows into label-value pairs only when the table really does not fit, so the
+  // decision holds for any font and any width (re-checked whenever the width changes).
+  const fit = () => {
+    wrap.classList.remove("stacked");
+    if (wrap.scrollWidth > wrap.clientWidth + 1) wrap.classList.add("stacked");
+  };
+  new ResizeObserver(fit).observe(wrap);
+  return wrap;
 }
 
 // Any value of a slot, recursively. `depth` only limits nesting of headings.
