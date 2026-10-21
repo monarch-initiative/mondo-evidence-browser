@@ -16,8 +16,10 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from mondo_evidence_browser.decision_store import DirectoryDecisionStore
 from mondo_evidence_browser.decisions import DecisionLog
 from mondo_evidence_browser.index import EvidenceIndex, build_index
+from mondo_evidence_browser.lookup import LookupWriter
 from mondo_evidence_browser.mondo import MondoRelease
 from mondo_evidence_browser.records import RecordBuilder
 from mondo_evidence_browser.registry import Registry
@@ -165,11 +167,17 @@ def build(cfg: BuildConfig) -> BuildReport:
     rule = ScoreRule.from_yaml(cfg.config_dir / "rules" / "inclusion-score.yaml")
     mondo = MondoRelease.from_obo(cfg.mondo_obo)
     builder = RecordBuilder(rule, Registry.from_dir(cfg.config_dir), mondo, cfg.as_of)
-    latest = DecisionLog(cfg.decisions_path).latest() if cfg.decisions_path else {}
+    if cfg.decisions_path is None:
+        latest: dict[str, dict[str, Any]] = {}
+    elif cfg.decisions_path.is_dir():  # a checkout of the decisions repository
+        latest = DirectoryDecisionStore(cfg.decisions_path).latest()
+    else:
+        latest = DecisionLog(cfg.decisions_path).latest()
     report = BuildReport()
 
     files: list[str] = []
     seen: dict[str, tuple[int, int, bytes]] = {}
+    lookups = LookupWriter()
 
     def records() -> Iterator[dict[str, Any]]:
         for file_name, number, raw in _packets(cfg.store_dir):
@@ -197,6 +205,7 @@ def build(cfg: BuildConfig) -> BuildReport:
                     "same statement upstream."
                 )
             seen[key] = (len(files) - 1, number, digest)
+            lookups.add(key, record)
             yield record
 
     provenance = {
@@ -215,6 +224,22 @@ def build(cfg: BuildConfig) -> BuildReport:
     else:
         data_dir, base_url = cfg.site_dir / "data", "data/"
     db_config = _publish_db(cfg.index_path, data_dir, base_url, cfg.db_file)
+    meta = EvidenceIndex(cfg.index_path).meta()
+    lookups.write(
+        data_dir / "lookup",
+        {
+            k: meta[k]
+            for k in (
+                "record_count",
+                "schema_version",
+                "rule_id",
+                "rule_version",
+                "mondo_release",
+                "built_at",
+            )
+            if k in meta
+        },
+    )
     site_config = {
         "schema_version": spec["schema"]["version"],
         "db": db_config,

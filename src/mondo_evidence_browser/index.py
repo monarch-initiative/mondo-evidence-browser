@@ -8,8 +8,14 @@
   is what keeps 600K+ records lazy over HTTP range requests.
 - ``record_json``: the full record as zlib-compressed JSON, read one at a time for
   the detail view (the browser inflates it with ``DecompressionStream``).
-- ``search``: a contentless FTS5 table over the spec's search columns.
-- ``meta``: counts per tab and per filter value, schema version, build provenance.
+- ``search``: a contentless FTS5 table over the spec's search columns, plus hidden
+  token columns for the tab and every filter column. A search with filters, and its
+  count, is answered by this index alone, without reading the (scattered) rows.
+- Rows are stored in the default sort order within each tab, so a page of the default
+  view is a run of neighbouring rows (few, large reads), and search results, which
+  come back in row order, are already in that order.
+- ``meta``: counts per tab, per filter value and per combination of filter values,
+  the search tokens, the clustered order, schema version, build provenance.
 
 The file uses rollback journaling and 4 KiB pages so it can be read lazily by
 sql.js-httpvfs on a static host.
@@ -28,6 +34,18 @@ from pathlib import Path
 from typing import Any
 
 SQL_TYPES = {"number": "REAL", "integer": "INTEGER", "boolean": "INTEGER"}
+
+
+TAB_TOKEN_COLUMN = "zz_tab"
+
+
+def filter_token_column(name: str) -> str:
+    """The hidden search-index column holding a filter column's value tokens.
+
+    >>> filter_token_column("review_status")
+    'zz_f_review_status'
+    """
+    return f"zz_f_{name}"
 
 
 def rank_column(name: str) -> str:
@@ -92,6 +110,19 @@ class _Layout:
         self.tab_slot = spec["tabs"]["slot"] if spec.get("tabs") else None
         self.search = [c["name"] for c in self.columns if c["search"]]
         self.sortable = [c["name"] for c in self.columns if c["sortable"]]
+        self.filters = [c for c in self.columns if c["filter"]]
+        self.positions = {
+            name: i for i, name in enumerate(["key", "tab", *[c["name"] for c in self.columns]])
+        }
+
+    @property
+    def fts_columns(self) -> list[str]:
+        """Search columns, then the token columns for the tab and each filter."""
+        return [
+            *self.search,
+            TAB_TOKEN_COLUMN,
+            *[filter_token_column(c["name"]) for c in self.filters],
+        ]
 
     def schema_sql(self) -> str:
         cols = ",\n  ".join(
@@ -109,12 +140,15 @@ class _Layout:
                 statements.append(
                     f"CREATE INDEX {_q('ix_' + c['name'])} ON records (tab, {_q(c['name'])})"
                 )
-        if self.search:
-            names = ", ".join(_q(n) for n in self.search)
-            statements.append(
-                f"CREATE VIRTUAL TABLE search USING fts5({names}, content='', "
-                "tokenize='unicode61 remove_diacritics 2')"
-            )
+        names = ", ".join(_q(n) for n in self.fts_columns)
+        statements.append(
+            f"CREATE VIRTUAL TABLE search USING fts5({names}, content='', "
+            "tokenize='unicode61 remove_diacritics 2')"
+        )
+        statements.append(
+            "CREATE TABLE staging (key TEXT PRIMARY KEY, tab TEXT, sort_value, "
+            "params TEXT NOT NULL, json BLOB NOT NULL)"
+        )
         return ";\n".join(statements) + ";"
 
     def row(self, record: Mapping[str, Any]) -> dict[str, Any]:
@@ -157,27 +191,59 @@ def build_index(
         "PRAGMA page_size = 4096; PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;"
         + layout.schema_sql()
     )
-    insert = layout.upsert_sql()
-    filters = [c for c in layout.columns if c["filter"]]
+    filters = layout.filters
+    default = spec.get("default_sort")
+    by_name = {c["name"]: c for c in layout.columns}
     tab_counts: Counter[str] = Counter()
-    filter_values: dict[str, dict[str, Counter[str]]] = defaultdict(lambda: defaultdict(Counter))
-    seen: set[str] = set()
+    combos: Counter[tuple[str, tuple[str | None, ...]]] = Counter()
     for record in records:
         params = layout.params(record)
-        (rowid,) = conn.execute(insert, params).fetchone()
-        conn.execute(
-            "INSERT OR REPLACE INTO record_json (rowid, json) VALUES (?, ?)",
-            (rowid, _pack(record)),
-        )
         key, tab = params["0"], params["1"] or ""
-        if key in seen:
-            continue
-        seen.add(key)
+        sort_value = column_value(record, by_name[default["column"]]) if default else None
+        conn.execute(
+            "INSERT OR REPLACE INTO staging VALUES (?, ?, ?, ?, ?)",
+            (key, tab, sort_value, json.dumps(params), _pack(record)),
+        )
+        values = tuple(None if (v := column_value(record, c)) is None else str(v) for c in filters)
         tab_counts[tab] += 1
+        combos[(tab, values)] += 1
+
+    # Opaque, exact tokens for the tab and the filter values in the search index.
+    tab_tokens = {tab: f"t{i}" for i, tab in enumerate(sorted(tab_counts))}
+    filter_tokens: dict[str, dict[str, str]] = {}
+    for position, c in enumerate(filters):
+        seen_values = sorted({value for _, v in combos if (value := v[position]) is not None})
+        filter_tokens[c["name"]] = {value: f"v{i}" for i, value in enumerate(seen_values)}
+
+    # Write rows in the default order within each tab.
+    direction = "DESC" if default and default["direction"] == "desc" else "ASC"
+    order = f"tab, sort_value {direction}, key" if default else "rowid"
+    insert = layout.upsert_sql()
+    fts_names = ", ".join(_q(n) for n in layout.fts_columns)
+    fts_insert = (
+        f"INSERT INTO search (rowid, {fts_names}) "
+        f"VALUES (?, {', '.join('?' * len(layout.fts_columns))})"
+    )
+    writer = conn.cursor()
+    for params_json, blob in conn.execute(f"SELECT params, json FROM staging ORDER BY {order}"):
+        params = json.loads(params_json)
+        (rowid,) = writer.execute(insert, params).fetchone()
+        writer.execute("INSERT INTO record_json (rowid, json) VALUES (?, ?)", (rowid, blob))
+        tab = params["1"] or ""
+        fts_values = [params[str(layout.positions[name])] for name in layout.search]
+        fts_values.append(tab_tokens[tab])
         for c in filters:
-            value = column_value(record, c)
+            value = params[str(layout.positions[c["name"]])]
+            fts_values.append(
+                filter_tokens[c["name"]].get(str(value)) if value is not None else None
+            )
+        writer.execute(fts_insert, (rowid, *fts_values))
+    conn.execute("DROP TABLE staging")
+    filter_values: dict[str, dict[str, Counter[str]]] = defaultdict(lambda: defaultdict(Counter))
+    for (tab, values), n in combos.items():
+        for c, value in zip(filters, values, strict=True):
             if value is not None:
-                filter_values[tab][c["name"]][str(value)] += 1
+                filter_values[tab][c["name"]][value] += n
     for name in layout.sortable:
         rank = rank_column(name)
         conn.execute(
@@ -187,19 +253,32 @@ def build_index(
             f") AS ranked WHERE records.rowid = ranked.id"
         )
         conn.execute(f"CREATE INDEX {_q('ix_' + rank)} ON records (tab, {_q(rank)})")
-    if layout.search:
-        names = ", ".join(_q(n) for n in layout.search)
-        conn.execute(f"INSERT INTO search (rowid, {names}) SELECT rowid, {names} FROM records")
     meta = {
         "schema_version": spec["schema"]["version"],
         "schema_name": spec["schema"]["name"],
-        "record_count": len(seen),
+        "record_count": sum(tab_counts.values()),
         "tab_counts": dict(tab_counts),
         "rank_columns": {name: rank_column(name) for name in layout.sortable},
         "rank_indexes": {name: "ix_" + rank_column(name) for name in layout.sortable},
         "filter_values": {
             t: {c: dict(v) for c, v in cols.items()} for t, cols in filter_values.items()
         },
+        "filter_columns": [c["name"] for c in filters],
+        "filter_combos": {
+            tab: [[list(values), n] for (t, values), n in sorted(combos.items()) if t == tab]
+            for tab in sorted(tab_counts)
+        },
+        "fts_tokens": {
+            "tab": {"column": TAB_TOKEN_COLUMN, "tokens": tab_tokens},
+            "filters": {
+                c["name"]: {
+                    "column": filter_token_column(c["name"]),
+                    "tokens": filter_tokens[c["name"]],
+                }
+                for c in filters
+            },
+        },
+        "clustered": dict(default) if default else None,
         "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
         **provenance,
     }
@@ -213,7 +292,7 @@ def build_index(
     conn.execute("VACUUM")
     conn.close()
     os.replace(building, path)
-    return len(seen)
+    return sum(tab_counts.values())
 
 
 class EvidenceIndex:

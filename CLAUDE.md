@@ -47,8 +47,11 @@ when interfacing with external systems (ORCID, the network, untrusted tokens).
 - **The build refuses bad data:** duplicate or colliding record ids fail it, and claim
   types the Mondo comparison can't answer are marked NOT_CHECKED, never guessed.
 - **README "Changing things"** lists where each kind of change goes; keep it current.
-- **Decisions are append-only** (`decisions.py`), and each one records the record
-  version and score rule version it was given on.
+- **Decisions are append-only** and each one records the record version and score
+  rule version it was given on. Locally they go to a JSONL log (`decisions.py`); when
+  deployed, the stateless service commits one file per decision to a GitHub repo
+  (`decision_store.py`) and checks records against per-record lookup shards
+  (`lookup.py`), never the whole index. Deployment is free and documented in DEPLOY.md.
 - **The score rule is versioned** (`config/rules/*.yaml`). Bump the version whenever
   a number changes.
 - **Requirement IDs (D-0NN)** refer to the Mondo evidence, provenance and confidence

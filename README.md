@@ -68,6 +68,42 @@ ruff. `just test-unit` and `just test-browser` run each half on its own.
     (D-048, D-051). A later change to any of them sends the record back to the queue
     as "signed off on an older version".
 
+## Scale
+
+Measured on 600,000 records: the 6,495 real packets copied under new ids, with
+statements unchanged, so the tab split stays realistic. Measured in Chromium against
+a local server.
+
+| Action | Read from the 906 MB index | HTTP requests |
+|---|---|---|
+| Open the list (default order) | 44 KB | 12 |
+| Re-sort by another column | 76 KB | 18 |
+| Open page 3,597 by link | 44 KB | 12 |
+| Common filter, then Next twice | 80 KB | 15 |
+| Two filters at once | 192 KB | 43 |
+| Search a rare word | 244 KB | 53 |
+| Search a common word ("syndrome") | 3.8 MB | 85 |
+| Open a record by link | 52 KB | 10 |
+| Expand a row | 72 KB | 18 |
+
+The build takes about 4 minutes, and its peak memory stays near 235 MB whatever the
+size. The index grows by about 1.5 KB per record. The service's lookup shards come to
+36 MB, about 9 KB fetched per sign-off.
+
+What makes this work:
+
+- **Default order on disk.** Rows are stored in the default order, so a page is a run
+  of neighbouring rows.
+- **Indexed sort ranks.** Every sortable column has an indexed rank, so any page of any
+  order is a range read.
+- **The search index answers on its own.** It holds exact tokens for the tab and every
+  filter value, so searches and filters, and their counts, never read the rows.
+- **Stored counts.** Counts for every combination of filter values are stored at build
+  time.
+
+A search with more than 500 matches can only be shown in the default order. The page
+says so; sorting it by another column would mean reading every matching row.
+
 ## How it is built
 
 ```
@@ -127,35 +163,30 @@ wrong data.
 
 ## Deploying
 
-**GitHub Pages: the read side, fully static.**
-[`pages.yaml`](.github/workflows/pages.yaml) runs on pushes to main, weekly, and on
-demand. It checks out the packet store from `semanticly-ai/mondo-ai`, fetches the
-current Mondo release, builds the site and deploys it.
+Everything is free with no payment card. [**DEPLOY.md**](DEPLOY.md) is the
+step-by-step setup.
 
-- The index is published as one file. GitHub Pages allows 1 GB per site; at about
-  1.5 KB per record that is roughly 600K records. For more, build with
-  `--data-url https://… --data-dir out/` and upload `out/` to a host that answers HTTP
-  range requests and allows the site's origin (CORS), for example an S3-style bucket.
-  It must allow the `Range` request header and expose `Content-Range`,
-  `Content-Length` and `Accept-Ranges`.
-- sql.js-httpvfs 0.8.12 is unmaintained, and its chunked mode loses pages when a read
-  crosses a chunk boundary, which is why the index isn't split. Only `db.js` uses it,
-  so it can be swapped (for example for DuckDB-WASM) without touching the rest.
-- Asset paths carry a content hash, so a redeploy is never served stale.
-- To enable login and sign-off, set the repository variables `MEB_SERVICE_URL`,
-  `ORCID_CLIENT_ID` and, for production ORCID, `ORCID_BASE_URL=https://orcid.org`.
-  Without them the site is read-only and says so.
+| Part | Where | Notes |
+|---|---|---|
+| Site | GitHub Pages | Static; content-hashed asset paths, so a redeploy is never served stale |
+| Data (index + lookup shards) | Pages, or a Hugging Face dataset for 600K+ records | Range requests and CORS, uncompressed; pinned per build |
+| Sign-off service | A free Hugging Face Space (Docker) | Stateless: per-record lookup shards, decisions committed to GitHub |
+| Decisions | A GitHub repository, one file per decision | Append-only, versioned; the build reads it for review statuses |
+| Builds | GitHub Actions ([`pages.yaml`](.github/workflows/pages.yaml)) | On pushes to main, weekly, and on demand |
 
-**Sign-off service: anywhere that isn't static.** `mondo-evidence-browser serve` reads
-these settings, all documented in [`service.py`](src/mondo_evidence_browser/service.py):
+Notes:
 
-- `MEB_INDEX`, `MEB_DECISIONS`, `MEB_CONFIG`
-- `ORCID_CLIENT_ID`, `ORCID_BASE_URL`
-- `MEB_ALLOWED_ORIGINS`: the Pages origin, for CORS
-
-The service updates its own copy of the index when someone signs off. The Pages site
-shows the new review status after its next build, but the record page always shows the
-live history.
+- **Data on Pages.** Without a Hugging Face dataset the index is published on Pages
+  as `evidence.sqlite.png`. Pages gzips most content types, which breaks range reads,
+  but leaves images alone. Pages allows 1 GB per site, roughly 600K records.
+- **Data on Hugging Face.** Each build gets its own folder, so a rebuild never mixes
+  two index versions in one browser session.
+- **The SQLite-over-HTTP library.** sql.js-httpvfs 0.8.12 is unmaintained, and its
+  chunked mode loses pages when a read crosses a chunk boundary, so the index isn't
+  split. Only `db.js` uses it, so it can be swapped (for example for DuckDB-WASM)
+  without touching the rest.
+- **Local runs** (`just serve`) use a local index and decision log instead; every
+  setting is documented in [`service.py`](src/mondo_evidence_browser/service.py).
 
 **ORCID client.** Register a public API client (the sandbox for testing). Its redirect
 URI is the site's `auth.html`, for example

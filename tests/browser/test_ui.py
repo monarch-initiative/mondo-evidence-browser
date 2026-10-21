@@ -337,3 +337,67 @@ def test_next_and_previous_continue_from_the_page_shown(page: Page, big_site: Si
     expect(page).to_have_url(re.compile(r"page=2"))
     expect(page.locator("body")).to_have_attribute("data-loading", "false")
     assert _row_keys(page) == _expected(big_site, order, 50, where)
+
+
+def _fts_keys(site: Site, match: str, order: str = "rowid") -> list[str]:
+    return _keys(
+        site,
+        "SELECT key FROM records WHERE rowid IN "
+        f"(SELECT rowid FROM search WHERE search MATCH ?) AND tab = 'CANDIDATE' ORDER BY {order}",
+        match,
+    )
+
+
+def test_search_with_a_filter_is_counted_and_paged_from_the_search_index(
+    page: Page, big_site: Site
+) -> None:
+    _open_list(page, big_site, "?tab=CANDIDATE&q=deficiency&review_status=unreviewed")
+    expected = _fts_keys(big_site, '"deficiency"*')
+    expect(page.locator("#count")).to_contain_text(f"of {len(expected):,} records")
+    assert _row_keys(page) == expected[:50]
+    page.get_by_role("button", name="Next →").click()
+    expect(page).to_have_url(re.compile(r"page=2"))
+    expect(page.locator("body")).to_have_attribute("data-loading", "false")
+    assert _row_keys(page) == expected[50:100]
+
+
+def test_two_filters_are_counted_without_reading_rows(page: Page, big_site: Site) -> None:
+    _open_list(page, big_site, "?tab=CANDIDATE&review_status=unreviewed&claim_type=C003")
+    n = len(
+        _keys(
+            big_site,
+            "SELECT key FROM records WHERE tab = 'CANDIDATE' AND "
+            "review_status = 'unreviewed' AND claim_type = 'C003'",
+        )
+    )
+    expect(page.locator("#count")).to_contain_text(f"of {n:,} records")
+    read = page.evaluate("async () => await window.__meb.bytesRead()")
+    assert read < (big_site.root / "evidence.db").stat().st_size * 0.2
+
+
+def test_a_broad_search_stays_in_the_default_order_and_says_so(page: Page, big_site: Site) -> None:
+    _open_list(page, big_site, "?tab=CANDIDATE&q=deficiency&sort=statement__subject_label&dir=asc")
+    expect(page.locator("#notice")).to_contain_text("can't be sorted by another column")
+    assert _row_keys(page) == _fts_keys(big_site, '"deficiency"*')[:50]
+    expect(page.locator("th[data-column=inclusion_score__value]")).to_have_attribute(
+        "aria-sort", "descending"
+    )
+
+
+def test_a_narrow_search_can_be_sorted_by_any_column(page: Page, big_site: Site) -> None:
+    conn = sqlite3.connect(big_site.root / "evidence.db")
+    word = next(
+        w
+        for w in ("myasthenic", "argininemia", "peripartum", "seminoma", "lyase", "werner")
+        if 0
+        < conn.execute(
+            "SELECT count(*) FROM records WHERE tab = 'CANDIDATE' AND rowid IN "
+            "(SELECT rowid FROM search WHERE search MATCH ?)",
+            (f'"{w}"*',),
+        ).fetchone()[0]
+        <= 500
+    )
+    _open_list(page, big_site, f"?tab=CANDIDATE&q={word}&sort=statement__subject_label&dir=asc")
+    expect(page.locator("#notice")).to_be_hidden()
+    expected = _fts_keys(big_site, f'"{word}"*', "statement__subject_label ASC, rowid ASC")
+    assert _row_keys(page) == expected[:50]

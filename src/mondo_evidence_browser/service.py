@@ -7,7 +7,9 @@ ORCID client id), issuer and expiry; checks the curator registry; checks the for
 values against the schema-derived form; and appends the decision to the log.
 
 It can also serve the static site itself, which is how ``just serve`` runs
-everything locally.
+everything locally. In a free, stateless deployment (a Hugging Face Space) it keeps
+nothing on disk: records come from the build's lookup shards (``MEB_LOOKUP_URL``) and
+decisions are committed to a GitHub repository (``MEB_DECISIONS_REPO``).
 
 =========================  =====================================================
 ``MEB_INDEX``              SQLite index (default ``var/evidence.db``)
@@ -15,6 +17,11 @@ everything locally.
 ``MEB_CONFIG``             score rule + registries (default ``config``)
 ``MEB_SITE``               static site to serve, if any (default ``site``)
 ``MEB_ALLOWED_ORIGINS``    comma-separated origins allowed to call the API (CORS)
+``MEB_LOOKUP_URL``         lookup shards URL (``…/lookup/``); replaces the local index
+``MEB_DECISIONS_REPO``     GitHub repository ("owner/name") to commit decisions to;
+                           replaces the local log
+``MEB_DECISIONS_BRANCH``   its branch (default ``main``)
+``MEB_GITHUB_TOKEN``       fine-grained token that can write only to that repository
 ``ORCID_CLIENT_ID``        ORCID API client id (the id_token audience)
 ``ORCID_BASE_URL``         ``https://sandbox.orcid.org`` (default) or ``https://orcid.org``
 =========================  =====================================================
@@ -37,8 +44,10 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from mondo_evidence_browser.decision_store import DecisionStoreError, GitHubDecisionStore
 from mondo_evidence_browser.decisions import DecisionLog, Refusal, sign_off
 from mondo_evidence_browser.index import EvidenceIndex
+from mondo_evidence_browser.lookup import IndexSource, ShardLookup
 from mondo_evidence_browser.registry import ORCID_PATTERN, Registry, normalise_orcid
 from mondo_evidence_browser.viewspec import SCHEMA_PATH, build_view_spec
 
@@ -55,6 +64,10 @@ class ServiceSettings:
     orcid_client_id: str | None = None
     orcid_base_url: str = "https://sandbox.orcid.org"
     allowed_origins: tuple[str, ...] = ()
+    lookup_url: str | None = None
+    decisions_repo: str | None = None
+    decisions_branch: str = "main"
+    github_token: str | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> ServiceSettings:
@@ -75,6 +88,10 @@ class ServiceSettings:
             orcid_client_id=env.get("ORCID_CLIENT_ID") or None,
             orcid_base_url=env.get("ORCID_BASE_URL", "https://sandbox.orcid.org").rstrip("/"),
             allowed_origins=tuple(o.strip() for o in origins.split(",") if o.strip()),
+            lookup_url=env.get("MEB_LOOKUP_URL") or None,
+            decisions_repo=env.get("MEB_DECISIONS_REPO") or None,
+            decisions_branch=env.get("MEB_DECISIONS_BRANCH", "main"),
+            github_token=env.get("MEB_GITHUB_TOKEN") or None,
         )
 
 
@@ -156,12 +173,31 @@ def _error(status: int, detail: str) -> JSONResponse:
 
 
 def create_service(
-    settings: ServiceSettings, orcid_transport: httpx.AsyncBaseTransport | None = None
+    settings: ServiceSettings,
+    orcid_transport: httpx.AsyncBaseTransport | None = None,
+    lookup_transport: httpx.BaseTransport | None = None,
+    github_transport: httpx.BaseTransport | None = None,
 ) -> FastAPI:
-    """Build the service app. ``orcid_transport`` stands in for ORCID in tests."""
+    """Build the service app. The transports stand in for ORCID, the data host and
+    GitHub in tests."""
     spec = build_view_spec(settings.schema_path)
-    index = EvidenceIndex(settings.index_path, spec)
-    log = DecisionLog(settings.decisions_path)
+    records: ShardLookup | IndexSource = (
+        ShardLookup(settings.lookup_url, transport=lookup_transport)
+        if settings.lookup_url
+        else IndexSource(EvidenceIndex(settings.index_path, spec))
+    )
+    if settings.decisions_repo and not settings.github_token:
+        raise ValueError("MEB_DECISIONS_REPO is set but MEB_GITHUB_TOKEN is not")
+    log: GitHubDecisionStore | DecisionLog = (
+        GitHubDecisionStore(
+            settings.decisions_repo,
+            settings.github_token or "",
+            branch=settings.decisions_branch,
+            transport=github_transport,
+        )
+        if settings.decisions_repo
+        else DecisionLog(settings.decisions_path)
+    )
     registry = Registry.from_dir(settings.config_dir)
     verifier = (
         OrcidVerifier(settings.orcid_base_url, settings.orcid_client_id, orcid_transport)
@@ -179,7 +215,7 @@ def create_service(
 
     @app.get("/api/health")
     def health() -> dict[str, Any]:
-        meta = index.meta()
+        meta = records.meta()
         return {
             "status": "ok",
             "records": meta["record_count"],
@@ -191,16 +227,19 @@ def create_service(
 
     @app.get("/api/records/{record_id}", response_model=None)
     def record(record_id: str) -> JSONResponse | dict[str, Any]:
-        found = index.get(record_id)
+        found = records.get(record_id)
         if found is None:
             return _error(404, f"No evidence record {record_id}.")
         return {"record": found}
 
     @app.get("/api/records/{record_id}/decisions", response_model=None)
     def decisions(record_id: str) -> JSONResponse | dict[str, Any]:
-        if index.get(record_id) is None:
+        if records.get(record_id) is None:
             return _error(404, f"No evidence record {record_id}.")
-        return {"decisions": log.for_record(record_id)}
+        try:  # GitHub is an external system
+            return {"decisions": log.for_record(record_id)}
+        except DecisionStoreError as error:
+            return _error(503, str(error))
 
     @app.post("/api/records/{record_id}/sign-off", status_code=201, response_model=None)
     async def record_sign_off(
@@ -215,19 +254,22 @@ def create_service(
         identity = await verifier.verify(authorization.split(" ", 1)[1].strip())
         if isinstance(identity, str):
             return _error(401, identity)
-        result = sign_off(
-            index,
-            log,
-            registry,
-            spec["form"],
-            record_id=record_id,
-            seen_version=body.seen_version,
-            seen_rule_version=body.seen_rule_version,
-            values=body.values,
-            orcid=identity.orcid,
-            name=identity.name,
-            now=datetime.now(UTC).replace(microsecond=0),
-        )
+        try:  # the decision store may be GitHub, an external system
+            result = sign_off(
+                records,
+                log,
+                registry,
+                spec["form"],
+                record_id=record_id,
+                seen_version=body.seen_version,
+                seen_rule_version=body.seen_rule_version,
+                values=body.values,
+                orcid=identity.orcid,
+                name=identity.name,
+                now=datetime.now(UTC).replace(microsecond=0),
+            )
+        except DecisionStoreError as error:
+            return _error(503, f"The sign-off could not be saved: {error}")
         if isinstance(result, Refusal):
             return _error(result.status_code, result.message)
         return {"decision": result}

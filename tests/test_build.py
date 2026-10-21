@@ -191,3 +191,24 @@ def test_the_published_database_name_can_be_chosen(tmp_path: Path) -> None:
     published = (site / "data" / "evidence.sqlite.png").read_bytes()
     assert published == (tmp_path / "var" / "evidence.db").read_bytes()
     assert not (site / "data" / "evidence.db").exists()
+
+
+def test_decisions_can_come_from_a_decisions_repo_checkout(
+    tmp_path: Path, raw_by_id: dict[str, Any]
+) -> None:
+    from mondo_evidence_browser.decision_store import DirectoryDecisionStore
+
+    checkout = tmp_path / "mondo-evidence-decisions"
+    DirectoryDecisionStore(checkout).append(
+        {
+            "decision_id": "dec_1",
+            "packet_id": PACKET,
+            "packet_version": packet_version(raw_by_id[PACKET]),
+            "score": {"rule_version": "0.1.0-uncalibrated"},
+            "outcome": "controversial",
+            "decided_at": "2026-10-21T12:00:00+00:00",
+        }
+    )
+    build(config(tmp_path, decisions_path=checkout))
+    record = EvidenceIndex(tmp_path / "var" / "evidence.db").get(PACKET)
+    assert record is not None and record["review_status"] == "controversial"

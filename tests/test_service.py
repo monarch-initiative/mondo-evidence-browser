@@ -182,3 +182,102 @@ def test_the_service_serves_the_static_site(client: TestClient) -> None:
     assert chunk.status_code == 206 and chunk.content.startswith(b"SQLite format 3")
     config = client.get("/config.json").json()
     assert config["service"] == {"url": ""}
+
+
+def _static(directory: Path) -> Any:
+    """A static data host serving ``directory`` (like Hugging Face or Pages)."""
+    import httpx
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = directory / request.url.path.rsplit("/lookup/", 1)[-1]
+        if not path.is_file():
+            return httpx.Response(404)
+        return httpx.Response(200, content=path.read_bytes())
+
+    return httpx.MockTransport(handler)
+
+
+def test_stateless_service_uses_lookups_and_a_github_decision_store(
+    settings: ServiceSettings, tmp_path: Path
+) -> None:
+    """How it runs in a Hugging Face Space: no index, no local log, nothing on disk."""
+    from tests.github_api import REPO, TOKEN, FakeContentsAPI
+
+    assert settings.site_dir is not None
+    lookup_dir = settings.site_dir / "data" / "lookup"
+    github = FakeContentsAPI()
+    stateless = ServiceSettings(
+        index_path=tmp_path / "no-index-here.db",
+        decisions_path=tmp_path / "no-log-here.jsonl",
+        config_dir=CONFIG,
+        orcid_client_id=CLIENT_ID,
+        orcid_base_url=ORCID_BASE,
+        lookup_url="https://huggingface.co/datasets/x/y/resolve/main/lookup/",
+        decisions_repo=REPO,
+        github_token=TOKEN,
+    )
+    client = TestClient(
+        create_service(
+            stateless,
+            orcid_transport=jwks_endpoint(),
+            lookup_transport=_static(lookup_dir),
+            github_transport=github.transport(),
+        )
+    )
+    assert client.get("/api/health").json()["records"] == 23
+    entry = client.get(f"/api/records/{PACKET}").json()["record"]
+    body = {
+        "seen_version": entry["record_version"],
+        "seen_rule_version": entry["inclusion_score"]["rule_version"],
+        "values": {"outcome": "accepted", "rationale": "Checked."},
+    }
+    response = client.post(
+        f"/api/records/{PACKET}/sign-off",
+        json=body,
+        headers={"Authorization": f"Bearer {id_token()}"},
+    )
+    assert response.status_code == 201, response.text
+    (path,) = github.files
+    assert f"/{PACKET}/" in path
+    history = client.get(f"/api/records/{PACKET}/decisions").json()["decisions"]
+    assert [d["rationale"] for d in history] == ["Checked."]
+    assert not (tmp_path / "no-log-here.jsonl").exists()
+
+
+def test_stateless_service_reports_github_failures(
+    settings: ServiceSettings, tmp_path: Path
+) -> None:
+    from tests.github_api import REPO, FakeContentsAPI
+
+    assert settings.site_dir is not None
+    github = FakeContentsAPI()
+    stateless = ServiceSettings(
+        index_path=tmp_path / "none.db",
+        decisions_path=tmp_path / "none.jsonl",
+        config_dir=CONFIG,
+        orcid_client_id=CLIENT_ID,
+        orcid_base_url=ORCID_BASE,
+        lookup_url="https://data.example.org/lookup/",
+        decisions_repo=REPO,
+        github_token="expired-token",
+    )
+    client = TestClient(
+        create_service(
+            stateless,
+            orcid_transport=jwks_endpoint(),
+            lookup_transport=_static(settings.site_dir / "data" / "lookup"),
+            github_transport=github.transport(),
+        )
+    )
+    entry = client.get(f"/api/records/{PACKET}").json()["record"]
+    response = client.post(
+        f"/api/records/{PACKET}/sign-off",
+        json={
+            "seen_version": entry["record_version"],
+            "seen_rule_version": entry["inclusion_score"]["rule_version"],
+            "values": {"outcome": "accepted"},
+        },
+        headers={"Authorization": f"Bearer {id_token()}"},
+    )
+    assert response.status_code == 503
+    assert "401" in response.json()["detail"]

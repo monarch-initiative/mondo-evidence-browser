@@ -78,15 +78,42 @@ function whereClause(spec, state) {
   return { sql: clauses.length ? " WHERE " + clauses.join(" AND ") : "", params };
 }
 
-async function countRows(db, spec, state, meta) {
-  const filterNames = Object.keys(state.filters);
-  if (!state.q && filterNames.length === 0) return meta.tab_counts?.[state.tab ?? ""] ?? 0;
-  if (!state.q && filterNames.length === 1) {
-    const [name] = filterNames;
-    return meta.filter_values?.[state.tab ?? ""]?.[name]?.[state.filters[name]] ?? 0;
+// The search-index expression for the tab, the filters and the search words. The index
+// holds an exact token per tab and filter value (see index.py), so this needs no rows.
+// Returns null when nothing can match (a filter value absent from the tab).
+function matchExpression(state, meta) {
+  const tokens = meta.fts_tokens;
+  const parts = [];
+  if (state.tab !== null) {
+    const token = tokens.tab.tokens[state.tab];
+    if (!token) return null;
+    parts.push(`${tokens.tab.column} : ${token}`);
   }
-  const where = whereClause(spec, state);
-  const [row] = await db.query(`SELECT count(*) AS n FROM records${where.sql}`, where.params);
+  for (const [name, value] of Object.entries(state.filters)) {
+    const filter = tokens.filters[name];
+    const token = filter?.tokens[value];
+    if (!token) return null;
+    parts.push(`${filter.column} : ${token}`);
+  }
+  const words = ftsQuery(state.q);
+  if (words) parts.push(`(${words})`);
+  return parts.join(" AND ");
+}
+
+// Counts never read rows: per-combination counts were stored at build time, and a
+// search is counted by the search index alone.
+async function countRows(db, spec, state, meta) {
+  const tab = state.tab ?? "";
+  if (!state.q) {
+    const columns = meta.filter_columns || [];
+    const wanted = columns.map((name) => state.filters[name] ?? null);
+    return (meta.filter_combos?.[tab] || [])
+      .filter(([values]) => wanted.every((w, i) => w === null || values[i] === w))
+      .reduce((total, [, n]) => total + n, 0);
+  }
+  const match = matchExpression(state, meta);
+  if (match === null) return 0;
+  const [row] = await db.query("SELECT count(*) AS n FROM search WHERE search MATCH ?", [match]);
   return row.n;
 }
 
@@ -114,11 +141,59 @@ function rankSource(state, meta, rankIndex) {
   return common && rankIndex ? `records INDEXED BY ${ident(rankIndex)}` : "records";
 }
 
+// Sorting a search by another column means reading each match's row, so it is only
+// offered up to this many matches; larger searches stay in the default (stored) order.
+const SORT_SEARCH_LIMIT = 500;
+
+function isClusteredSort(state, meta) {
+  return Boolean(meta.clustered) && state.sort === meta.clustered.column;
+}
+
+// The view actually shown: a search too broad to sort by another column falls back to
+// the default order, with a note saying so.
+function effectiveState(spec, state, meta, total) {
+  if (state.q && meta.clustered && !isClusteredSort(state, meta) && total > SORT_SEARCH_LIMIT) {
+    const column = spec.columns.find((c) => c.name === meta.clustered.column);
+    return {
+      state: { ...state, sort: meta.clustered.column, dir: meta.clustered.direction, after: null, before: null },
+      notice:
+        `Sorted by ${column?.title ?? "the default order"}: a search with more than ` +
+        `${SORT_SEARCH_LIMIT.toLocaleString()} matches can't be sorted by another column. ` +
+        "Narrow the search to sort it.",
+    };
+  }
+  return { state, notice: null };
+}
+
+// Rows are stored in the default order, so in that order a filtered or searched page is
+// a slice of the search index's matching row ids, then one read of just those rows.
+async function fetchByRowOrder(db, spec, state, meta) {
+  const match = matchExpression(state, meta);
+  if (match === null) return [];
+  const forward = state.dir === meta.clustered.direction;
+  const order = forward ? "ASC" : "DESC";
+  const ids = await db.query(
+    `SELECT rowid AS id FROM search WHERE search MATCH ? ORDER BY rowid ${order} LIMIT ? OFFSET ?`,
+    [match, PAGE_SIZE, (state.page - 1) * PAGE_SIZE],
+  );
+  if (!ids.length) return [];
+  const columns = ["key", ...spec.columns.map((c) => c.name)].map(ident).join(", ");
+  const marks = ids.map(() => "?").join(", ");
+  return db.query(
+    `SELECT ${columns} FROM records WHERE rowid IN (${marks}) ORDER BY rowid ${order}`,
+    ids.map((r) => r.id),
+  );
+}
+
 // Pages are read through the sort column's rank (its position within the tab, see
 // index.py), so no page ever skips rows to get where it is:
 // - unfiltered, any page N is a range of ranks, however deep;
-// - filtered, Next / Previous continue from the last / first rank shown.
+// - filtered, Next / Previous continue from the last / first rank shown;
+// - filtered or searched in the default order, pages come from the search index.
 async function fetchPage(db, spec, state, meta) {
+  if (isFiltered(state) && isClusteredSort(state, meta) && meta.fts_tokens) {
+    return fetchByRowOrder(db, spec, state, meta);
+  }
   const where = whereClause(spec, state);
   const columns = ["key", ...spec.columns.map((c) => c.name)].map(ident).join(", ");
   const rank = state.sort ? meta.rank_columns?.[state.sort] : null;
@@ -364,17 +439,22 @@ async function main() {
     const controls = document.getElementById("controls");
     const table = document.getElementById("table");
     const count = document.getElementById("count");
+    const notice = document.getElementById("notice");
     const pager = document.getElementById("pager");
 
     async function show(state) {
       renderTabs(tabs, spec, state, meta, go);
       renderControls(controls, spec, state, meta, go);
       document.body.dataset.loading = "true";
-      const [rows, total] = await Promise.all([fetchPage(db, spec, state, meta), countRows(db, spec, state, meta)]);
+      const total = await countRows(db, spec, state, meta);
+      const shown = effectiveState(spec, state, meta, total);
+      const rows = await fetchPage(db, spec, shown.state, meta);
       const first = total ? (state.page - 1) * PAGE_SIZE + 1 : 0;
       count.textContent = `${first.toLocaleString()}–${((state.page - 1) * PAGE_SIZE + rows.length).toLocaleString()} of ${total.toLocaleString()} records`;
-      renderTable(table, spec, state, rows, go, db);
-      renderPager(pager, state, total, rows, go);
+      notice.textContent = shown.notice || "";
+      notice.hidden = !shown.notice;
+      renderTable(table, spec, shown.state, rows, go, db);
+      renderPager(pager, shown.state, total, rows, go);
       document.body.dataset.loading = "false";
     }
 

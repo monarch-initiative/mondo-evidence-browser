@@ -103,3 +103,31 @@ def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
     if settings.orcid_client_id is None:
         typer.echo("ORCID_CLIENT_ID is not set: browsing works, signing off does not.")
     uvicorn.run(create_service(settings), host=host, port=port)
+
+
+@app.command(name="publish-hf")
+def publish_hf(
+    data_dir: Annotated[Path, typer.Option(help="The build's --data-dir")],
+    repo: Annotated[str, typer.Option(envvar="MEB_DATA_REPO", help="Dataset repo owner/name")],
+    build_id: Annotated[str, typer.Option(help="Build id, e.g. the CI run id")],
+    token: Annotated[str, typer.Option(envvar="HF_TOKEN", help="Hugging Face write token")],
+    keep: Annotated[int, typer.Option(help="Builds to keep")] = 3,
+) -> None:
+    """Upload a build's data to a Hugging Face dataset (needs the deploy group)."""
+    from mondo_evidence_browser.huggingface import lookup_url, publish
+
+    url = publish(data_dir, repo, build_id, token, keep=keep)
+    typer.echo(f"Published {data_dir} to {url}")
+    typer.echo(f"Lookups for the sign-off service (MEB_LOOKUP_URL): {lookup_url(repo)}")
+
+
+@app.command(name="restart-space")
+def restart_space_command(
+    space: Annotated[str, typer.Option(envvar="MEB_SPACE", help="Space owner/name")],
+    token: Annotated[str, typer.Option(envvar="HF_TOKEN", help="Hugging Face write token")],
+) -> None:
+    """Rebuild the sign-off service's Space so it runs the latest code."""
+    from mondo_evidence_browser.huggingface import restart_space
+
+    restart_space(space, token)
+    typer.echo(f"Restarting {space}")

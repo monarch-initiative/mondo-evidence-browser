@@ -175,3 +175,80 @@ def test_database_is_ready_for_http_range_reads(db: Path) -> None:
     conn = sqlite3.connect(db)
     assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
     assert conn.execute("PRAGMA page_size").fetchone()[0] == 4096
+
+
+def test_rows_are_stored_in_the_default_order(db: Path, spec: dict[str, Any]) -> None:
+    """So a page of the default view is a run of neighbouring rows: few, large reads."""
+    conn = sqlite3.connect(db)
+    column = spec["default_sort"]["column"]
+    for tab in ("IN_MONDO", "CANDIDATE"):
+        by_rowid = [
+            k
+            for (k,) in conn.execute("SELECT key FROM records WHERE tab = ? ORDER BY rowid", (tab,))
+        ]
+        values = [
+            v
+            for (v,) in conn.execute(
+                f'SELECT "{column}" FROM records WHERE tab = ? ORDER BY rowid', (tab,)
+            )
+        ]
+        assert values == sorted(values, reverse=True)
+        assert len(by_rowid) == len(set(by_rowid))
+    assert EvidenceIndex(db).meta()["clustered"] == spec["default_sort"]
+
+
+def _fts_count(db: Path, match: str) -> int:
+    (n,) = (
+        sqlite3.connect(db)
+        .execute("SELECT count(*) FROM search WHERE search MATCH ?", (match,))
+        .fetchone()
+    )
+    return int(n)
+
+
+def test_tab_and_filters_are_answerable_from_the_search_index(
+    db: Path, records: list[dict[str, Any]]
+) -> None:
+    """A search with filters, and its count, never needs the (scattered) table rows."""
+    tokens = EvidenceIndex(db).meta()["fts_tokens"]
+    tab_col, tab_tokens = tokens["tab"]["column"], tokens["tab"]["tokens"]
+    status = tokens["filters"]["review_status"]
+    match = (
+        f"{tab_col} : {tab_tokens['CANDIDATE']} AND "
+        f'{status["column"]} : {status["tokens"]["unreviewed"]} AND "arginase"*'
+    )
+    expected = sum(
+        1
+        for r in records
+        if r["mondo_membership"] == "CANDIDATE"
+        and r["review_status"] == "unreviewed"
+        and "arginase" in (r["statement"].get("subject_label") or "").lower()
+    )
+    assert expected > 0
+    assert _fts_count(db, match) == expected
+    assert _fts_count(db, f"{tab_col} : {tab_tokens['IN_MONDO']}") == sum(
+        r["mondo_membership"] == "IN_MONDO" for r in records
+    )
+
+
+def test_counts_for_every_filter_combination_are_stored(
+    db: Path, records: list[dict[str, Any]], spec: dict[str, Any]
+) -> None:
+    meta = EvidenceIndex(db).meta()
+    columns = meta["filter_columns"]
+    assert columns == [c["name"] for c in spec["columns"] if c["filter"]]
+    by_column = {c["name"]: c for c in spec["columns"]}
+    for tab, combos in meta["filter_combos"].items():
+        assert sum(n for _, n in combos) == meta["tab_counts"][tab]
+        for values, n in combos:
+            matching = [
+                r
+                for r in records
+                if r["mondo_membership"] == tab
+                and all(
+                    str(column_value(r, by_column[c])) == v
+                    for c, v in zip(columns, values, strict=True)
+                    if v is not None
+                )
+            ]
+            assert n == len(matching)

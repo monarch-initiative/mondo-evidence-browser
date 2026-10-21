@@ -21,13 +21,28 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
-from mondo_evidence_browser.index import EvidenceIndex
 from mondo_evidence_browser.records import review_status
 from mondo_evidence_browser.registry import Registry
 
 DECISION_FORMAT = "mondo-evidence-browser/decision/v1"
+
+
+class RecordSource(Protocol):
+    """Where sign-offs look records up: a local index, or per-record lookup shards."""
+
+    def get(self, key: str) -> dict[str, Any] | None:
+        """The record (or its lookup entry), or None."""
+        ...
+
+    def refresh(self, key: str) -> None:
+        """Drop any cached copy of ``key``'s record."""
+        ...
+
+    def note_status(self, record: Mapping[str, Any], status: str) -> None:
+        """Record a new review status, where the source can."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -109,9 +124,17 @@ def check_form(form: Mapping[str, Any], values: Mapping[str, Any]) -> str | None
     return None
 
 
+class DecisionSink(Protocol):
+    """Where a new decision is written: the local log, or the GitHub decision store."""
+
+    def append(self, decision: Mapping[str, Any]) -> None:
+        """Store one decision; never overwrite."""
+        ...
+
+
 def sign_off(
-    index: EvidenceIndex,
-    log: DecisionLog,
+    records: RecordSource,
+    log: DecisionSink,
     registry: Registry,
     form: Mapping[str, Any],
     *,
@@ -129,7 +152,7 @@ def sign_off(
     the record or its score changed since, the sign-off is refused: a curator must
     never sign off evidence they have not seen (D-051).
     """
-    record = index.get(record_id)
+    record = records.get(record_id)
     if record is None:
         return Refusal(404, f"No evidence record {record_id}.")
     agent = registry.agent(orcid)
@@ -139,8 +162,17 @@ def sign_off(
             f"{orcid} is not a curator in the agent registry, so it cannot sign off. "
             "Ask a Mondo administrator to add you to config/agents.yaml.",
         )
+
+    def changed(found: Mapping[str, Any]) -> bool:
+        rule = found["inclusion_score"].get("rule_version")
+        return bool(seen_version != found["record_version"] or seen_rule_version != rule)
+
+    if changed(record):
+        # A cached lookup may predate a rebuild the curator already sees: check afresh.
+        records.refresh(record_id)
+        record = records.get(record_id) or record
     score = record["inclusion_score"]
-    if seen_version != record["record_version"] or seen_rule_version != score.get("rule_version"):
+    if changed(record):
         return Refusal(
             409,
             "This record or its score changed after you opened it. Review it again "
@@ -177,5 +209,5 @@ def sign_off(
     decision["curator"] = {k: v for k, v in decision["curator"].items() if v is not None}
     log.append(decision)
     status = review_status(decision, record["record_version"], score.get("rule_version"))
-    index.put({**record, "review_status": status})
+    records.note_status(record, status)
     return decision

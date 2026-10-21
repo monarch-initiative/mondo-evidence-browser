@@ -30,6 +30,9 @@ dependencies = [
 mondo-evidence-browser = "mondo_evidence_browser.cli:app"
 
 [dependency-groups]
+deploy = [
+    "huggingface-hub>=0.25",
+]
 dev = [
   "pytest>=8.0",
   "mypy>=1.10",

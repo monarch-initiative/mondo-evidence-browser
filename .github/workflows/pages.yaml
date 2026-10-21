@@ -1,11 +1,20 @@
 # Build the static browser from the mondo-ai packet store and the current Mondo
 # release, and deploy it to GitHub Pages. Runs on pushes to main, weekly (to pick up
-# new Mondo releases and packets), and on demand.
+# new Mondo releases, packets and sign-offs), and on demand. Everything it uses is free.
 #
-# Repository variables (Settings > Secrets and variables > Actions > Variables):
-#   MEB_SERVICE_URL   URL of the sign-off service; unset for a read-only site
-#   ORCID_CLIENT_ID   ORCID client id for login; unset for no login
-#   ORCID_BASE_URL    https://orcid.org for production (default: the sandbox)
+# Repository variables (Settings > Secrets and variables > Actions > Variables), all
+# optional; see DEPLOY.md:
+#   MEB_SERVICE_URL     URL of the sign-off service (the Hugging Face Space)
+#   ORCID_CLIENT_ID     ORCID client id for login
+#   ORCID_BASE_URL      https://orcid.org for production (default: the sandbox)
+#   MEB_DECISIONS_REPO  owner/name of the decisions repository the service writes to
+#   MEB_DATA_REPO       owner/name of a Hugging Face dataset to host the data
+#   MEB_SPACE           owner/name of the Hugging Face Space to rebuild on code changes
+# Repository secret:
+#   HF_TOKEN            Hugging Face token with write access to MEB_DATA_REPO/MEB_SPACE
+#
+# Without MEB_DATA_REPO the data is published on Pages itself (fine up to ~600K
+# records; Pages allows 1 GB per site).
 ---
 name: Deploy to GitHub Pages
 
@@ -41,6 +50,13 @@ jobs:
           path: packets
           sparse-checkout: ${{ env.PACKETS_PATH }}
           persist-credentials: false
+      - name: Check out the decisions
+        if: ${{ vars.MEB_DECISIONS_REPO != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.MEB_DECISIONS_REPO }}
+          path: decisions
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
@@ -52,25 +68,37 @@ jobs:
           cache: npm
       - name: Install project
         run: |
-          uv sync
+          uv sync --group deploy
           npm ci
       - name: Fetch the current Mondo release
         run: |
           mkdir -p data
           curl -sSL --fail -o data/mondo.obo https://purl.obolibrary.org/obo/mondo.obo
           grep -m1 '^data-version:' data/mondo.obo
-      - name: Build the site
+      - name: Build the site (and publish the data)
         env:
           MEB_SERVICE_URL: ${{ vars.MEB_SERVICE_URL }}
           ORCID_CLIENT_ID: ${{ vars.ORCID_CLIENT_ID }}
           ORCID_BASE_URL: ${{ vars.ORCID_BASE_URL || 'https://sandbox.orcid.org' }}
+          MEB_DATA_REPO: ${{ vars.MEB_DATA_REPO }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           if [ -z "$MEB_SERVICE_URL" ]; then unset MEB_SERVICE_URL; fi
           if [ -z "$ORCID_CLIENT_ID" ]; then unset ORCID_CLIENT_ID; fi
-          # Pages gzips most content types, which breaks range reads of the
-          # database; it leaves images alone, hence the .png name.
-          uv run mondo-evidence-browser build --store "packets/$PACKETS_PATH" --site site \
-            --db-file evidence.sqlite.png
+          args=(--store "packets/$PACKETS_PATH" --site site)
+          if [ -d decisions ]; then args+=(--decisions decisions); fi
+          if [ -n "$MEB_DATA_REPO" ] && [ -n "$HF_TOKEN" ]; then
+            # Data on Hugging Face, in a folder for this build only.
+            url=$(uv run python -c "from mondo_evidence_browser.huggingface import data_url; \
+              print(data_url('$MEB_DATA_REPO', '$GITHUB_RUN_ID'))")
+            uv run mondo-evidence-browser build "${args[@]}" --data-url "$url" --data-dir data-out
+            uv run mondo-evidence-browser publish-hf --data-dir data-out \
+              --repo "$MEB_DATA_REPO" --build-id "$GITHUB_RUN_ID"
+          else
+            # Data on Pages. Pages gzips most content types, which breaks range reads
+            # of the database; it leaves images alone, hence the .png name.
+            uv run mondo-evidence-browser build "${args[@]}" --db-file evidence.sqlite.png
+          fi
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
@@ -87,3 +115,23 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  restart-space:
+    # The Space builds the sign-off service from main; rebuild it when the code changes.
+    needs: deploy
+    if: ${{ github.event_name == 'push' && vars.MEB_SPACE != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      - name: Rebuild the Space
+        env:
+          MEB_SPACE: ${{ vars.MEB_SPACE }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          uv sync --group deploy
+          uv run mondo-evidence-browser restart-space
