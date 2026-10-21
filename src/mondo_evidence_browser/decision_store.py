@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import time
 from collections.abc import Iterator, Mapping
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,12 @@ import httpx
 from mondo_evidence_browser.lookup import shard_of
 
 API = "https://api.github.com"
+
+
+# Commit dates and decision times can differ by a little (clocks, retries), so the
+# commits listed for "since T" start this much before T; extra ones are filtered out.
+SINCE_MARGIN = timedelta(minutes=10)
+COMMIT_PAGES = 10  # at most 1,000 commits since a build, 100 per request
 
 
 class DecisionStoreError(RuntimeError):
@@ -48,6 +56,29 @@ def decision_path(decision: Mapping[str, Any]) -> str:
 
 def _record_dir(record_id: str) -> str:
     return f"decisions/{shard_of(record_id)}/{record_id}"
+
+
+def commit_message(decision: Mapping[str, Any]) -> str:
+    """The commit message of a decision; it names the record, for :func:`record_of`.
+
+    >>> commit_message({"outcome": "accepted", "packet_id": "pkt_1",
+    ...                 "curator": {"orcid": "ORCID:0000-0002-1825-0097"}})
+    'Sign-off: accepted on pkt_1 by ORCID:0000-0002-1825-0097'
+    """
+    curator = (decision.get("curator") or {}).get("orcid")
+    return f"Sign-off: {decision.get('outcome')} on {decision['packet_id']} by {curator}"
+
+
+def record_of(message: str) -> str | None:
+    """The record a decision commit is about, from its message (None for other commits).
+
+    >>> record_of("Sign-off: accepted on pkt_1 by ORCID:0000-0002-1825-0097")
+    'pkt_1'
+    >>> record_of("Add README") is None
+    True
+    """
+    found = re.match(r"Sign-off: \S+ on (\S+) by ", message)
+    return found.group(1) if found else None
 
 
 class DirectoryDecisionStore:
@@ -90,11 +121,17 @@ class GitHubDecisionStore:
         branch: str = "main",
         transport: httpx.BaseTransport | None = None,
         ttl: float = 60.0,
+        ttl_recent: float = 30.0,
     ) -> None:
-        """Write to ``repo`` ("owner/name") on ``branch`` with a token that may write there."""
+        """Write to ``repo`` ("owner/name") on ``branch`` with a token that may write there.
+
+        Histories are cached for ``ttl`` seconds and the list of recent sign-offs for
+        ``ttl_recent``, which bounds GitHub API use whatever the number of curators.
+        """
         self.repo = repo
         self.branch = branch
         self.ttl = ttl
+        self.ttl_recent = ttl_recent
         self._client = httpx.Client(
             base_url=API,
             transport=transport,
@@ -106,6 +143,11 @@ class GitHubDecisionStore:
             },
         )
         self._history: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+        self._files: dict[str, dict[str, Any]] = {}  # decision files never change
+        self._seen_commits: set[str] = set()
+        self._recent: dict[str, list[dict[str, Any]]] = {}  # history of recently decided
+        self._recent_from: str | None = None  # the earliest time _recent covers
+        self._recent_at: float | None = None  # when the commits were last listed
 
     def _url(self, path: str) -> str:
         return f"/repos/{self.repo}/contents/{path}"
@@ -120,14 +162,10 @@ class GitHubDecisionStore:
     def append(self, decision: Mapping[str, Any]) -> None:
         """Commit one decision as a new file."""
         content = json.dumps(dict(decision), ensure_ascii=False, sort_keys=True, indent=1)
-        message = (
-            f"Sign-off: {decision.get('outcome')} on {decision['packet_id']} "
-            f"by {(decision.get('curator') or {}).get('orcid')}"
-        )
         response = self._client.put(
             self._url(decision_path(decision)),
             json={
-                "message": message,
+                "message": commit_message(decision),
                 "content": base64.b64encode(content.encode()).decode(),
                 "branch": self.branch,
             },
@@ -135,20 +173,72 @@ class GitHubDecisionStore:
         self._check(response, "store the decision")
         self._history.pop(str(decision["packet_id"]), None)
 
-    def for_record(self, record_id: str) -> list[dict[str, Any]]:
-        """A record's decisions, oldest first (cached for ``ttl`` seconds)."""
+    def for_record(self, record_id: str, fresh: bool = False) -> list[dict[str, Any]]:
+        """A record's decisions, oldest first (cached for ``ttl`` seconds unless ``fresh``)."""
         cached = self._history.get(record_id)
-        if cached is not None and time.monotonic() - cached[0] < self.ttl:
+        if not fresh and cached is not None and time.monotonic() - cached[0] < self.ttl:
             return cached[1]
         listing = self._client.get(self._url(_record_dir(record_id)), params={"ref": self.branch})
         if listing.status_code == 404:
             history: list[dict[str, Any]] = []
         else:
             self._check(listing, "list the decisions")
-            history = []
-            for entry in sorted(listing.json(), key=lambda e: e["name"]):
-                response = self._client.get(self._url(entry["path"]), params={"ref": self.branch})
-                self._check(response, "read a decision")
-                history.append(json.loads(base64.b64decode(response.json()["content"])))
+            history = [
+                self._read(e["path"]) for e in sorted(listing.json(), key=lambda e: e["name"])
+            ]
         self._history[record_id] = (time.monotonic(), history)
         return history
+
+    def _read(self, path: str) -> dict[str, Any]:
+        if path not in self._files:
+            response = self._client.get(self._url(path), params={"ref": self.branch})
+            self._check(response, "read a decision")
+            self._files[path] = json.loads(base64.b64decode(response.json()["content"]))
+        return self._files[path]
+
+    def since(self, when: str | None) -> list[dict[str, Any]]:
+        """Decisions made after ``when`` (an ISO time; None for all).
+
+        One request lists the commits since then; only records with commits not seen
+        before are read again. The result is cached for ``ttl_recent`` seconds.
+        """
+        covered = self._recent_at is not None and (
+            self._recent_from is None or (when is not None and when >= self._recent_from)
+        )
+        stale = self._recent_at is None or time.monotonic() - self._recent_at >= self.ttl_recent
+        if stale or not covered:
+            self._poll(when, exhaustive=not covered)
+            if not covered:
+                self._recent_from = when
+        return [
+            d
+            for history in self._recent.values()
+            for d in history
+            if when is None or d["decided_at"] > when
+        ]
+
+    def _poll(self, when: str | None, exhaustive: bool) -> None:
+        params: dict[str, Any] = {"sha": self.branch, "path": "decisions", "per_page": 100}
+        if when is not None:
+            start = datetime.fromisoformat(when).astimezone(UTC) - SINCE_MARGIN
+            params["since"] = start.strftime("%Y-%m-%dT%H:%M:%SZ")
+        new: dict[str, str] = {}  # commit -> record, for commits not seen before
+        for page in range(1, COMMIT_PAGES + 1):  # newest first
+            response = self._client.get(
+                f"/repos/{self.repo}/commits", params={**params, "page": page}
+            )
+            self._check(response, "list recent sign-offs")
+            commits = response.json()
+            unseen = [c for c in commits if c["sha"] not in self._seen_commits]
+            for commit in unseen:
+                record = record_of(commit["commit"]["message"])
+                if record is not None:
+                    new[commit["sha"]] = record
+            if len(commits) < params["per_page"]:
+                break  # the last page
+            if not exhaustive and len(unseen) < len(commits):
+                break  # the rest was seen by an earlier poll
+        for record in set(new.values()):
+            self._recent[record] = self.for_record(record, fresh=True)
+        self._seen_commits |= set(new)
+        self._recent_at = time.monotonic()

@@ -363,3 +363,32 @@ def test_health_and_audience_errors_name_the_expected_client(client: TestClient)
     response = _post(client, _body(client), token=id_token(aud="APP-SOMEONE-ELSE"))
     assert response.status_code == 401
     assert CLIENT_ID in response.json()["detail"]
+
+
+def test_a_sign_off_after_someone_elses_is_refused_until_seen(client: TestClient) -> None:
+    """Two curators on one record: the second sees the first's decision before adding one."""
+    first = _post(client, {**_body(client), "seen_decision": None})
+    assert first.status_code == 201
+    first_id = first.json()["decision"]["decision_id"]
+    late = _post(client, {**_body(client, outcome="rejected"), "seen_decision": None})
+    assert late.status_code == 409
+    detail = late.json()["detail"]
+    assert "Josiah Carberry" in detail and "accepted" in detail
+    seen = _post(client, {**_body(client, outcome="rejected"), "seen_decision": first_id})
+    assert seen.status_code == 201
+    history = client.get(f"/api/records/{PACKET}/decisions").json()
+    assert [d["outcome"] for d in history["decisions"]] == ["accepted", "rejected"]
+    assert history["status"] == "rejected"
+
+
+def test_recent_decisions_give_live_statuses_for_the_list(client: TestClient) -> None:
+    assert client.get("/api/decisions/recent").json() == {"statuses": {}}
+    _post(client, _body(client))
+    recent = client.get("/api/decisions/recent").json()["statuses"]
+    assert recent[PACKET]["status"] == "accepted"
+    assert recent[PACKET]["curator"] == "Josiah Carberry"
+    decided_at = recent[PACKET]["decided_at"]
+    # Only sign-offs newer than what the site was built with.
+    assert client.get("/api/decisions/recent", params={"since": decided_at}).json() == {
+        "statuses": {}
+    }

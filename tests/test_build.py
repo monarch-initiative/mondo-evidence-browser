@@ -77,6 +77,7 @@ def test_site_config_for_a_small_database(tmp_path: Path) -> None:
         "requestChunkSize": 4096,
     }
     assert site_config["service"] is None and site_config["orcid"] is None
+    assert site_config["decisions"] == {"as_of": None}
     assert site_config["schema_version"] == "0.1.0"
 
 
@@ -109,6 +110,9 @@ def test_decisions_set_the_review_status(tmp_path: Path, raw_by_id: dict[str, An
     build(config(tmp_path))
     record = EvidenceIndex(tmp_path / "var" / "evidence.db").get(PACKET)
     assert record is not None and record["review_status"] == "rejected"
+    # The site knows which sign-offs it includes, so it can fetch only newer ones.
+    site_config = json.loads((tmp_path / "site" / "config.json").read_text())
+    assert site_config["decisions"] == {"as_of": "2026-10-20T12:00:00+00:00"}
 
 
 def test_unrecognised_packets_are_skipped_and_reported(

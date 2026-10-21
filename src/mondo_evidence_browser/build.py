@@ -245,6 +245,8 @@ def build(cfg: BuildConfig) -> BuildReport:
         "db": db_config,
         # "" means the sign-off service serves this site itself (same origin).
         "service": {"url": cfg.service_url.rstrip("/")} if cfg.service_url is not None else None,
+        # The newest sign-off in this build; the list asks the service for later ones.
+        "decisions": {"as_of": max((d["decided_at"] for d in latest.values()), default=None)},
         "orcid": (
             {"clientId": cfg.orcid_client_id, "baseUrl": cfg.orcid_base_url.rstrip("/")}
             if cfg.orcid_client_id

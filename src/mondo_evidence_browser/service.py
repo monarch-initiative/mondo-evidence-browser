@@ -48,6 +48,7 @@ from mondo_evidence_browser.decision_store import DecisionStoreError, GitHubDeci
 from mondo_evidence_browser.decisions import DecisionLog, Refusal, sign_off
 from mondo_evidence_browser.index import EvidenceIndex
 from mondo_evidence_browser.lookup import IndexSource, LookupUnavailable, ShardLookup
+from mondo_evidence_browser.records import review_status
 from mondo_evidence_browser.registry import ORCID_PATTERN, Registry, normalise_orcid
 from mondo_evidence_browser.viewspec import SCHEMA_PATH, build_view_spec
 
@@ -169,6 +170,8 @@ class SignOffRequest(BaseModel):
 
     seen_version: str
     seen_rule_version: str | None = None
+    # The latest decision the page showed (None: none); a newer one refuses the sign-off.
+    seen_decision: str | None = None
     values: dict[str, Any]
 
 
@@ -251,9 +254,45 @@ def create_service(
         if records.get(record_id) is None:
             return _error(404, f"No evidence record {record_id}.")
         try:  # GitHub is an external system
-            return {"decisions": log.for_record(record_id)}
+            history = log.for_record(record_id)
         except DecisionStoreError as error:
             return _error(503, str(error))
+        return {"decisions": history, "status": _status(history[-1] if history else None)}
+
+    def _status(decision: dict[str, Any] | None) -> str | None:
+        """The live review status given a record's latest decision."""
+        if decision is None:
+            return None
+        found = records.get(decision["packet_id"])
+        if found is None:
+            return None
+        return review_status(
+            decision, found["record_version"], found["inclusion_score"].get("rule_version")
+        )
+
+    @app.get("/api/decisions/recent", response_model=None)
+    def recent(since: str | None = None) -> JSONResponse | dict[str, Any]:
+        """Live statuses of records signed off after ``since`` (the site's build)."""
+        try:  # GitHub is an external system
+            decisions = log.since(since or None)
+        except DecisionStoreError as error:
+            return _error(503, str(error))
+        latest: dict[str, dict[str, Any]] = {}
+        for decision in sorted(decisions, key=lambda d: d["decided_at"]):
+            latest[decision["packet_id"]] = decision
+        statuses = {}
+        for record_id, decision in latest.items():
+            status = _status(decision)
+            if status is not None:
+                curator = decision.get("curator") or {}
+                statuses[record_id] = {
+                    "status": status,
+                    "outcome": decision.get("outcome"),
+                    "curator": curator.get("name") or curator.get("orcid"),
+                    "decided_at": decision["decided_at"],
+                    "decision_id": decision["decision_id"],
+                }
+        return {"statuses": statuses}
 
     @app.post("/api/records/{record_id}/sign-off", status_code=201, response_model=None)
     async def record_sign_off(
@@ -277,6 +316,7 @@ def create_service(
                 record_id=record_id,
                 seen_version=body.seen_version,
                 seen_rule_version=body.seen_rule_version,
+                seen_decision=body.seen_decision,
                 values=body.values,
                 orcid=identity.orcid,
                 name=identity.name,

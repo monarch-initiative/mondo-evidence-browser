@@ -19,7 +19,13 @@ function summary(spec, record) {
 }
 
 async function service(config, path, options = {}) {
-  const response = await fetch(`${config.service.url}${path}`, options);
+  let response;
+  try {
+    // The sign-off service is another system: say so plainly when it cannot be reached.
+    response = await fetch(`${config.service.url}${path}`, options);
+  } catch (error) {
+    return { ok: false, status: 0, body: { detail: `The sign-off service could not be reached (${error.message}).` } };
+  }
   const body = await response.json().catch(() => ({}));
   return { ok: response.ok, status: response.status, body };
 }
@@ -76,7 +82,9 @@ function formField(spec, field) {
   return el("label", { class: "field", for: id, "data-field": field.name }, label, input, hint);
 }
 
-function renderSignOff(container, spec, config, record, historyBox) {
+// `live.seen` is the latest decision this page has shown; a sign-off sends it, so the
+// service refuses it if another curator has decided since, and the page shows theirs.
+function renderSignOff(container, spec, config, record, live, loadHistory) {
   container.replaceChildren(el("h2", {}, "Sign-off"));
   if (!spec.form) return;
   if (!config.service) {
@@ -119,18 +127,24 @@ function renderSignOff(container, spec, config, record, historyBox) {
     const result = await service(config, `/api/records/${encodeURIComponent(record[spec.key])}/sign-off`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-      body: JSON.stringify({ seen_version: record.record_version, seen_rule_version: score.rule_version ?? null, values }),
+      body: JSON.stringify({
+        seen_version: record.record_version,
+        seen_rule_version: score.rule_version ?? null,
+        seen_decision: live.seen,
+        values,
+      }),
     });
     if (!result.ok) {
       message.textContent = result.body.detail || `Sign-off failed (HTTP ${result.status}).`;
       message.className = "form-message error";
+      // Someone else decided meanwhile: show their decision, keep this curator's input.
+      if (result.status === 409) await loadHistory();
       return;
     }
     message.textContent = "Sign-off recorded.";
     message.className = "form-message ok";
     form.reset();
-    const history = await service(config, `/api/records/${encodeURIComponent(record[spec.key])}/decisions`);
-    if (history.ok) renderHistory(historyBox, spec, history.body.decisions);
+    await loadHistory();
   });
   container.append(form);
 }
@@ -168,10 +182,29 @@ async function main() {
       history,
       el("details", {}, el("summary", {}, "Raw record"), el("pre", { class: "raw" }, JSON.stringify(record, null, 2))),
     );
-    renderSignOff(signoff, spec, config, record, history);
-    if (config.service && spec.history) {
+    const live = { seen: null };
+    async function loadHistory() {
       const result = await service(config, `/api/records/${encodeURIComponent(record[spec.key])}/decisions`);
-      renderHistory(history, spec, result.ok ? result.body.decisions : []);
+      if (!result.ok) {
+        history.replaceChildren(
+          el("h3", {}, "History"),
+          el("p", { class: "form-message error" }, `Could not load the sign-off history: ${result.body.detail || `HTTP ${result.status}`}`),
+        );
+        return;
+      }
+      const decisions = result.body.decisions;
+      live.seen = decisions.length ? decisions[decisions.length - 1].decision_id : null;
+      renderHistory(history, spec, decisions);
+      // The status in this build may predate recent sign-offs; show the live one.
+      const column = spec.columns.find((c) => c.name === spec.status);
+      const cell = article.querySelector(`dd[data-column="${spec.status}"]`);
+      if (column && cell && result.body.status) {
+        cell.replaceChildren(renderValue(spec, { ...column, layout: null }, result.body.status));
+      }
+    }
+    renderSignOff(signoff, spec, config, record, live, loadHistory);
+    if (config.service && spec.history) {
+      await loadHistory();
     } else {
       history.remove();
     }

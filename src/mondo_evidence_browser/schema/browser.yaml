@@ -16,6 +16,7 @@
 #   browser_format: score|curie|badge|list   how to render a value
 #   browser_layout: table|hidden  how the detail view lays out a slot
 #   browser_widget: radio|textarea|text      sign-off form widget
+#   browser_status: true          the review status column, updated live from sign-offs
 #
 # Class annotations:
 #   browser_root: true            the class whose instances are the records
@@ -111,6 +112,7 @@ classes:
           browser_filter: true
           browser_sortable: true
           browser_format: badge
+          browser_status: true
       record_version:
         title: Record version
         required: true

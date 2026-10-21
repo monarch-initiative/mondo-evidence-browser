@@ -6,6 +6,29 @@ import { getRecord, ident, loadSite, openDb, readMeta, siteUrl } from "./db.js";
 import { el, enumEntry, renderExplainer, renderList, renderPreview, renderScalar } from "./render.js";
 
 const PAGE_SIZE = 50;
+const LIVE_TTL_MS = 30_000;
+
+// Sign-offs made after this build, from the sign-off service: {record id: {status, …}}.
+// The table shows their status at once, so curators working in parallel see each
+// other's decisions without waiting for the next build (filter counts still do).
+let liveCache = null;
+async function liveStatuses(config) {
+  if (!config.service) return {};
+  if (liveCache && Date.now() - liveCache.at < LIVE_TTL_MS) return liveCache.statuses;
+  const since = config.decisions?.as_of;
+  const query = since ? `?since=${encodeURIComponent(since)}` : "";
+  let statuses = liveCache?.statuses ?? {};
+  try {
+    // The service is another system; the table still works without it.
+    const response = await fetch(`${config.service.url}/api/decisions/recent${query}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    statuses = (await response.json()).statuses;
+  } catch (error) {
+    console.warn(`Recent sign-offs are unavailable: ${error.message}`);
+  }
+  liveCache = { at: Date.now(), statuses };
+  return statuses;
+}
 
 // The first tab that has records; tabs without records are hidden unless opened.
 function defaultTab(spec, meta) {
@@ -328,7 +351,7 @@ async function togglePreview(db, spec, tr, button, href) {
   cell.replaceChildren(record ? renderPreview(spec, record, href) : el("p", {}, "Record not found."));
 }
 
-function renderTable(container, spec, state, rows, go, db) {
+function renderTable(container, spec, state, rows, go, db, live = {}) {
   const head = el(
     "tr",
     {},
@@ -373,7 +396,10 @@ function renderTable(container, spec, state, rows, go, db) {
       { class: "row-link", "data-key": row.key },
       el("td", { class: "expand-cell" }, toggle),
       spec.columns.map((column, i) => {
-        const content = cell(spec, column, row[column.name]);
+        const recent = column.name === spec.status ? live[row.key] : null;
+        const content = recent
+          ? el("span", {}, cell(spec, column, recent.status), el("span", { class: "live-mark" }, " · new"))
+          : cell(spec, column, row[column.name]);
         // The first text column links to the record, so rows work without JS clicks too.
         const linkHere = i === spec.columns.findIndex((c) => c.kind === "string" && !c.multivalued && c.format !== "curie");
         return el(
@@ -382,6 +408,8 @@ function renderTable(container, spec, state, rows, go, db) {
             "data-column": column.name,
             "data-label": column.title,
             class: [`k-${column.kind}`, column.format ? `f-${column.format}` : ""].join(" ").trim(),
+            "data-live": recent ? "true" : null,
+            title: recent ? `Signed off by ${recent.curator} at ${recent.decided_at}, after this build` : null,
           },
           linkHere ? el("a", { href, class: "record-link" }, content) : content,
         );
@@ -443,6 +471,7 @@ async function main() {
     const pager = document.getElementById("pager");
 
     async function show(state) {
+      const live = liveStatuses(config);
       renderTabs(tabs, spec, state, meta, go);
       renderControls(controls, spec, state, meta, go);
       document.body.dataset.loading = "true";
@@ -453,7 +482,7 @@ async function main() {
       count.textContent = `${first.toLocaleString()}–${((state.page - 1) * PAGE_SIZE + rows.length).toLocaleString()} of ${total.toLocaleString()} records`;
       notice.textContent = shown.notice || "";
       notice.hidden = !shown.notice;
-      renderTable(table, spec, shown.state, rows, go, db);
+      renderTable(table, spec, shown.state, rows, go, db, await live);
       renderPager(pager, shown.state, total, rows, go);
       document.body.dataset.loading = "false";
     }
@@ -466,6 +495,10 @@ async function main() {
     }
 
     window.addEventListener("popstate", () => show(readState(spec, meta)));
+    // Back from a record or another tab: pick up sign-offs made meanwhile.
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && config.service) show(readState(spec, meta));
+    });
     await show(readState(spec, meta));
     status.remove();
   } catch (error) {

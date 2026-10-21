@@ -401,3 +401,69 @@ def test_a_narrow_search_can_be_sorted_by_any_column(page: Page, big_site: Site)
     expect(page.locator("#notice")).to_be_hidden()
     expected = _fts_keys(big_site, f'"{word}"*', "statement__subject_label ASC, rowid ASC")
     assert _row_keys(page) == expected[:50]
+
+
+def _sign_via_api(site: Site, record_id: str, outcome: str) -> dict[str, object]:
+    """Another curator's sign-off, made through the service while this page is open."""
+    import httpx
+
+    record = httpx.get(f"{site.url}/api/records/{record_id}").json()["record"]
+    history = httpx.get(f"{site.url}/api/records/{record_id}/decisions").json()["decisions"]
+    response = httpx.post(
+        f"{site.url}/api/records/{record_id}/sign-off",
+        json={
+            "seen_version": record["record_version"],
+            "seen_rule_version": record["inclusion_score"]["rule_version"],
+            "seen_decision": history[-1]["decision_id"] if history else None,
+            "values": {"outcome": outcome},
+        },
+        headers={"Authorization": f"Bearer {id_token()}"},
+    )
+    assert response.status_code == 201, response.text
+    decision: dict[str, object] = response.json()["decision"]
+    return decision
+
+
+def _unreviewed_key(page: Page, site: Site, skip: set[str]) -> str:
+    _open_list(page, site)
+    for key in _row_keys(page):
+        status = page.locator(f'tr[data-key="{key}"] td[data-column="review_status"]')
+        if key not in skip and status.inner_text().strip().lower() == "unreviewed":
+            return key
+    raise AssertionError("no unreviewed record on the first page")
+
+
+def test_the_list_shows_sign_offs_made_after_the_build(page: Page, site: Site) -> None:
+    """Curators in parallel see each other's decisions without waiting for a rebuild."""
+    key = _unreviewed_key(page, site, skip={PACKET})
+    _sign_via_api(site, key, "rejected")
+    _open_list(page, site)
+    status = page.locator(f'tr[data-key="{key}"] td[data-column="review_status"]')
+    expect(status).to_contain_text("Rejected")
+    expect(status).to_contain_text("new")
+    expect(status).to_have_attribute("data-live", "true")
+    expect(status).to_have_attribute("title", re.compile("Josiah Carberry"))
+
+
+def test_a_decision_made_while_the_record_is_open_is_shown_before_signing(
+    page: Page, site: Site
+) -> None:
+    key = _unreviewed_key(page, site, skip={PACKET})
+    page.add_init_script(f"sessionStorage.setItem('meb.id_token', {json.dumps(id_token())})")
+    page.goto(f"{site.url}/record.html?id={key}")
+    form = page.locator("form.signoff-form")
+    expect(form).to_be_visible()
+    expect(page.locator("#history")).to_contain_text("No sign-offs yet.")
+    _sign_via_api(site, key, "deferred")  # someone else, meanwhile
+    form.get_by_label("Accept", exact=True).check()
+    form.get_by_role("button", name="Record sign-off").click()
+    message = page.locator(".form-message")
+    expect(message).to_contain_text("deferred this record")
+    expect(message).to_have_class(re.compile("error"))
+    expect(page.locator("#history li")).to_have_count(1)
+    expect(page.locator('dd[data-column="review_status"]')).to_contain_text("Deferred")
+    # Having seen it, the curator can add their own decision on top.
+    form.get_by_role("button", name="Record sign-off").click()
+    expect(message).to_have_text("Sign-off recorded.")
+    expect(page.locator("#history li")).to_have_count(2)
+    expect(page.locator('dd[data-column="review_status"]')).to_contain_text("Accepted")

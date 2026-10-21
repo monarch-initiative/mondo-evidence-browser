@@ -83,9 +83,13 @@ class DecisionLog:
         """Every decision, oldest first."""
         return list(self)
 
-    def for_record(self, record_id: str) -> list[dict[str, Any]]:
-        """The decision history of one record, oldest first."""
+    def for_record(self, record_id: str, fresh: bool = False) -> list[dict[str, Any]]:
+        """The decision history of one record, oldest first (the file is always fresh)."""
         return [d for d in self if d["packet_id"] == record_id]
+
+    def since(self, when: str | None) -> list[dict[str, Any]]:
+        """Decisions made after ``when`` (an ISO time; None for all), oldest first."""
+        return [d for d in self if when is None or d["decided_at"] > when]
 
     def latest(self) -> dict[str, dict[str, Any]]:
         """The current (latest) decision per record."""
@@ -131,6 +135,10 @@ class DecisionSink(Protocol):
         """Store one decision; never overwrite."""
         ...
 
+    def for_record(self, record_id: str, fresh: bool = False) -> list[dict[str, Any]]:
+        """A record's decisions, oldest first; ``fresh`` skips any cache."""
+        ...
+
 
 def sign_off(
     records: RecordSource,
@@ -141,6 +149,7 @@ def sign_off(
     record_id: str,
     seen_version: str,
     seen_rule_version: str | None,
+    seen_decision: str | None,
     values: Mapping[str, Any],
     orcid: str,
     name: str | None,
@@ -151,6 +160,10 @@ def sign_off(
     ``seen_version`` and ``seen_rule_version`` are what the curator was looking at. If
     the record or its score changed since, the sign-off is refused: a curator must
     never sign off evidence they have not seen (D-051).
+
+    ``seen_decision`` is the latest decision on the record the curator saw (None if
+    none). If another curator has decided since, the sign-off is refused too, so that
+    two curators on one record see each other's decisions rather than talk past them.
     """
     record = records.get(record_id)
     if record is None:
@@ -181,6 +194,17 @@ def sign_off(
     problem = check_form(form, values)
     if problem:
         return Refusal(422, problem)
+    history = log.for_record(record_id, fresh=True)
+    if history and history[-1]["decision_id"] != seen_decision:
+        latest = history[-1]
+        who = (latest.get("curator") or {}).get("name") or (latest.get("curator") or {}).get(
+            "orcid", "Another curator"
+        )
+        return Refusal(
+            409,
+            f"{who} {latest.get('outcome')} this record at {latest['decided_at']}, after you "
+            "opened it. Read their decision below, then sign off again if you still want to.",
+        )
     statement = record.get("statement") or {}
     decision: dict[str, Any] = {
         "format": DECISION_FORMAT,

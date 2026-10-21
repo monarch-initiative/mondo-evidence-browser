@@ -35,6 +35,7 @@ SLOT_ANNOTATIONS = {
     "browser_format",
     "browser_layout",
     "browser_widget",
+    "browser_status",
 }
 CLASS_ANNOTATIONS = {
     "browser_root",
@@ -264,11 +265,13 @@ def build_view_spec(schema_path: Path = SCHEMA_PATH) -> dict[str, Any]:
     builder = _Builder(sv)
     root, form_class, history_class, explain_class = _marked_classes(sv)
 
-    keys, tabs = [], []
+    keys, tabs, statuses = [], [], []
     for slot in sv.class_induced_slots(root):
         ann = _annotations(slot, SLOT_ANNOTATIONS)
         if ann.get("browser_key"):
             keys.append(slot.name)
+        if ann.get("browser_status"):
+            statuses.append(slot.name)
         if ann.get("browser_tab"):
             if builder.kind(slot) != "enum":
                 raise SpecError(f"tab slot {slot.name} must have an enum range, not {slot.range}")
@@ -277,6 +280,8 @@ def build_view_spec(schema_path: Path = SCHEMA_PATH) -> dict[str, Any]:
         raise SpecError(f"exactly one slot of {root} needs browser_key: true, found {keys}")
     if len(tabs) > 1:
         raise SpecError(f"at most one tab slot, found {[t.name for t in tabs]}")
+    if len(statuses) > 1:
+        raise SpecError(f"at most one browser_status slot, found {statuses}")
 
     columns = sorted(builder.columns(root, [], (root,)), key=lambda c: c["order"])
     if not columns:
@@ -292,6 +297,9 @@ def build_view_spec(schema_path: Path = SCHEMA_PATH) -> dict[str, Any]:
     default_sort = (
         {"column": sorts[0]["name"], "direction": sorts[0]["default_sort"]} if sorts else None
     )
+    # The review status column, which the list updates live from recent sign-offs.
+    if statuses and statuses[0] not in [c["name"] for c in columns]:
+        raise SpecError(f"browser_status slot {statuses[0]} must also be a browser_column")
 
     form = None
     if form_class is not None:
@@ -328,5 +336,6 @@ def build_view_spec(schema_path: Path = SCHEMA_PATH) -> dict[str, Any]:
         "enums": {name: _enum_values(sv, name) for name in sorted(sv.all_enums())},
         "form": form,
         "history": history_class,
+        "status": statuses[0] if statuses else None,
         "explain": explain_class,
     }

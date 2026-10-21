@@ -191,3 +191,9 @@ def test_only_one_default_sort(tmp_path: Path) -> None:
 
     with pytest.raises(SpecError, match="default sort"):
         build_view_spec(_edit(_schema_copy(tmp_path), edit))
+
+
+def test_status_column_is_marked_in_the_schema(spec: dict[str, Any]) -> None:
+    """The column the list updates live from recent sign-offs (browser_status)."""
+    assert spec["status"] == "review_status"
+    assert spec["status"] in [c["name"] for c in spec["columns"]]

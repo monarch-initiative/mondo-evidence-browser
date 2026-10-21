@@ -67,6 +67,15 @@ ruff. `just test-unit` and `just test-browser` run each half on its own.
   - Each sign-off records the record version, score and rule version on screen
     (D-048, D-051). A later change to any of them sends the record back to the queue
     as "signed off on an older version".
+  - Curators working in parallel see each other's decisions straight away, without
+    waiting for a rebuild:
+    - the list shows the status of records signed off since the build ("· new"), from
+      one cached service call every 30 seconds whatever the number of curators;
+    - a record page always shows the live history and status;
+    - a sign-off names the latest decision its page showed. If another curator has
+      decided since, it is refused with who decided what, and the page shows their
+      decision first.
+  - Filter counts such as "Unreviewed (2,596)" still change only at the next build.
 
 ## Scale
 
@@ -120,7 +129,7 @@ packets + mondo.obo + decision log ──► BrowserRecords ──► index ─�
 - **Display hints are slot annotations**, documented at the top of that file:
   `browser_column`, `browser_sortable`, `browser_default_sort`, `browser_tab`,
   `browser_search`, `browser_filter`, `browser_format`, `browser_layout`,
-  `browser_widget`, and a few class annotations.
+  `browser_widget`, `browser_status`, and a few class annotations.
 - **[`viewspec.py`](src/mondo_evidence_browser/viewspec.py)** turns the schema into
   `view-spec.json`. Mistakes fail the build instead of quietly dropping a column:
   - a misspelled `browser_*` key;
@@ -249,5 +258,5 @@ unscored rather than 0.
 - **Invalidating an evidence line** (D-052), sign-off as an evidence line (D-049), and
   collective sign-offs (D-046).
 - **Calibrated strengths and priors** (D-063), and rules for more claim types.
-- **A hosting choice for the sign-off service**, with a decision export so the Pages
-  build can read the live log.
+- **Rebuilding after sign-offs**, batched, so filter counts catch up within minutes
+  rather than at the next push or weekly build.

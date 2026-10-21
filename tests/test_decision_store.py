@@ -96,3 +96,49 @@ def test_directory_store_reads_a_checkout_of_the_decisions_repo(tmp_path: Path) 
     assert [d["decision_id"] for d in store.for_record(PACKET)] == ["dec_a", "dec_b"]
     assert store.latest()[PACKET]["decision_id"] == "dec_b"
     assert DirectoryDecisionStore(tmp_path / "empty").latest() == {}
+
+
+OTHER = "pkt_e27a7e05d319"
+
+
+def test_decisions_since_a_time_cost_one_request_when_nothing_is_new(
+    api: FakeContentsAPI, store: GitHubDecisionStore
+) -> None:
+    """What the list asks for: sign-offs made after its build, cheaply, for many curators."""
+    store.append(_decision("dec_1", "2026-10-21T12:00:00+00:00"))
+    store.append({**_decision("dec_2", "2026-10-21T12:05:00+00:00"), "packet_id": OTHER})
+    store.append(_decision("dec_3", "2026-10-21T12:10:00+00:00", outcome="rejected"))
+    recent = store.since("2026-10-21T12:00:00+00:00")
+    assert sorted(d["decision_id"] for d in recent) == ["dec_2", "dec_3"]
+    assert sorted(d["decision_id"] for d in store.since(None)) == ["dec_1", "dec_2", "dec_3"]
+    # Nothing new: one listing of commits, no decision files read again.
+    store.ttl_recent = 0
+    api.requests.clear()
+    store.since(None)
+    assert [r.url.path for r in api.requests] == [f"/repos/{REPO}/commits"]
+    # A new sign-off: only that record's history is read.
+    store.append({**_decision("dec_4", "2026-10-21T12:20:00+00:00"), "packet_id": OTHER})
+    api.requests.clear()
+    assert "dec_4" in [d["decision_id"] for d in store.since("2026-10-21T12:15:00+00:00")]
+    paths = [r.url.path for r in api.requests]
+    assert paths[0] == f"/repos/{REPO}/commits"
+    assert all(OTHER in p for p in paths[1:]) and len(paths) > 1
+
+
+def test_recent_decisions_are_cached_briefly(
+    api: FakeContentsAPI, store: GitHubDecisionStore
+) -> None:
+    store.append(_decision("dec_1", "2026-10-21T12:00:00+00:00"))
+    store.since(None)
+    api.requests.clear()
+    store.since(None)
+    assert api.requests == []
+
+
+def test_fresh_history_skips_the_cache(api: FakeContentsAPI, store: GitHubDecisionStore) -> None:
+    """A sign-off checks for decisions made since the curator looked, on any instance."""
+    other = GitHubDecisionStore(REPO, TOKEN, transport=api.transport())
+    assert other.for_record(PACKET) == []
+    store.append(_decision("dec_1", "2026-10-21T12:00:00+00:00"))
+    assert other.for_record(PACKET) == []  # cached
+    assert [d["decision_id"] for d in other.for_record(PACKET, fresh=True)] == ["dec_1"]

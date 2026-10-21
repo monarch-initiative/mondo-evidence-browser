@@ -102,7 +102,13 @@ def test_lookups_over_http_are_cached(built: Path) -> None:
     assert lookup.get("pkt_nope") is None
 
 
-def _sign(source: Any, log: DecisionLog, seen_version: str, rule_version: str) -> Any:
+def _sign(
+    source: Any,
+    log: DecisionLog,
+    seen_version: str,
+    rule_version: str,
+    seen_decision: str | None = None,
+) -> Any:
     return sign_off(
         source,
         log,
@@ -111,6 +117,7 @@ def _sign(source: Any, log: DecisionLog, seen_version: str, rule_version: str) -
         record_id=PACKET,
         seen_version=seen_version,
         seen_rule_version=rule_version,
+        seen_decision=seen_decision,
         values={"outcome": "accepted"},
         orcid=CARBERRY,
         name="Josiah Carberry",
@@ -147,7 +154,13 @@ def test_a_stale_cached_shard_is_refetched_before_refusing(built: Path, tmp_path
     log = DecisionLog(tmp_path / "decisions.jsonl")
     decision = _sign(lookup, log, "v_newerversion000", entry["inclusion_score"]["rule_version"])
     assert isinstance(decision, dict)
-    refusal = _sign(lookup, log, "v_someoneelses0000", entry["inclusion_score"]["rule_version"])
+    refusal = _sign(
+        lookup,
+        log,
+        "v_someoneelses0000",
+        entry["inclusion_score"]["rule_version"],
+        seen_decision=decision["decision_id"],
+    )
     assert isinstance(refusal, Refusal) and refusal.status_code == 409
 
 
