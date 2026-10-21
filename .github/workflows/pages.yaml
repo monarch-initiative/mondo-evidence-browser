@@ -99,7 +99,7 @@ jobs:
             # of the database; it leaves images alone, hence the .png name.
             uv run mondo-evidence-browser build "${args[@]}" --db-file evidence.sqlite.png
           fi
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
