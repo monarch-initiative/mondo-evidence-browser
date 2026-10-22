@@ -338,13 +338,17 @@ dl.summary.compact .stat { background: var(--panel-2); border: 0; padding: 8px 1
 dl.summary.compact .stat:has(dd p), dl.summary.compact .stat:has(blockquote) { grid-column: 1 / -1; }
 
 /* Every slot of the record, schema-driven: labels on the left, values on the right. */
-dl.object { display: grid; grid-template-columns: minmax(150px, max-content) minmax(0, 1fr); gap: 0 20px; margin: 0; font-size: 0.93rem; }
+/* Labels take their natural width but never more than 40% of the row, so values are
+   never squeezed; in a narrow container (a side column, a nested level, a phone) each
+   label sits above its value instead. */
+.panel, li.decision, dd.nested { container-type: inline-size; }
+dl.object { display: grid; grid-template-columns: fit-content(40%) minmax(0, 1fr); gap: 0 20px; margin: 0; font-size: 0.93rem; }
 dl.object > dt, dl.object > dd { padding: 7px 0; border-bottom: 1px solid var(--line); }
 dl.object > dt { color: var(--muted); font-weight: 500; }
 dl.object > dt.unknown { font-family: var(--mono); font-size: 0.82rem; }
 dl.object > dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
 dl.object > dt:nth-last-child(2), dl.object > dd:last-child { border-bottom: 0; }
-dl.object dl.object { grid-template-columns: minmax(96px, max-content) minmax(0, 1fr); column-gap: 16px; }
+dl.object dl.object { column-gap: 16px; }
 dl.object dl.object > dt, dl.object dl.object > dd { padding: 4px 0; border-bottom-color: color-mix(in srgb, var(--line) 60%, transparent); }
 dl.object > dd.nested > dl.object { background: var(--panel-2); border-radius: var(--radius-sm); padding: 6px 14px; }
 dl.object > dt.wide, dl.object > dd.wide { grid-column: 1 / -1; }
@@ -392,7 +396,13 @@ li.decision { border: 1px solid var(--line); border-radius: var(--radius-sm); pa
 details.more { margin-top: 8px; }
 details.more > summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--accent); }
 details.more[open] > summary { margin-bottom: 8px; }
-details.more dl.object { font-size: 0.85rem; grid-template-columns: minmax(110px, max-content) minmax(0, 1fr); }
+details.more dl.object { font-size: 0.85rem; }
+@container (max-width: 440px) {
+  dl.object { grid-template-columns: minmax(0, 1fr); }
+  dl.object > dt { border-bottom: 0; padding-bottom: 0; font-size: 0.82rem; }
+  dl.object > dd { padding-top: 2px; }
+  dl.object > dd.nested > dl.object { padding: 4px 10px; }
+}
 
 @media (max-width: 700px) {
   body { font-size: 15.5px; }

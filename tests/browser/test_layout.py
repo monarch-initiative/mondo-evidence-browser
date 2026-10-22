@@ -105,3 +105,49 @@ def test_expanded_preview_fits_too(page: Page, site: Site, width: int, font: str
     assert m["pageWidth"] <= m["vw"], m
     assert m["previewSpill"] == 0, m
     assert m["clipped"] == 0, m
+
+
+SQUEEZED = """() => {
+  for (const d of document.querySelectorAll('details')) d.open = true;
+  const values = [...document.querySelectorAll('#record dl.object > dd')]
+    .filter(dd => dd.textContent.trim() && dd.getClientRects().length);
+  return {
+    pageWidth: document.documentElement.scrollWidth,
+    vw: document.documentElement.clientWidth,
+    squeezed: values
+      .filter(dd => dd.getBoundingClientRect().width < 80)
+      .map(dd => `${dd.previousElementSibling?.textContent}: ${dd.textContent.slice(0, 20)}`),
+  };
+}"""
+
+
+@pytest.mark.parametrize("width", [1440, 1280, 1100, 1024, 800, 390])
+def test_record_details_never_squeeze_values(page: Page, site: Site, width: int, font: str) -> None:
+    """Nested details stay readable in narrow places, e.g. a decision in the side column."""
+    import httpx
+
+    from tests.orcid import id_token
+
+    record_id = "pkt_9c18e79339f2"
+    history = httpx.get(f"{site.url}/api/records/{record_id}/decisions").json()["decisions"]
+    if not history:
+        record = httpx.get(f"{site.url}/api/records/{record_id}").json()["record"]
+        signed = httpx.post(
+            f"{site.url}/api/records/{record_id}/sign-off",
+            json={
+                "seen_version": record["record_version"],
+                "seen_rule_version": record["inclusion_score"]["rule_version"],
+                "seen_decision": None,
+                "values": {"outcome": "accepted", "rationale": "Layout check."},
+            },
+            headers={"Authorization": f"Bearer {id_token()}"},
+        )
+        assert signed.status_code == 201, signed.text
+    page.set_viewport_size({"width": width, "height": 900})
+    page.goto(f"{site.url}/record.html?id={record_id}")
+    if font == "wide font":
+        page.add_style_tag(content=WIDE_FONT)
+    expect(page.locator("#history li.decision")).to_have_count(1)
+    m = page.evaluate(SQUEEZED)
+    assert m["pageWidth"] <= m["vw"], m
+    assert m["squeezed"] == [], m
