@@ -128,21 +128,35 @@ def check_form(form: Mapping[str, Any], values: Mapping[str, Any]) -> str | None
     return None
 
 
-class DecisionSink(Protocol):
-    """Where a new decision is written: the local log, or the GitHub decision store."""
+class DecisionStore(Protocol):
+    """Where sign-offs are kept: append-only, one record per decision.
+
+    Implementations: :class:`DecisionLog` (a JSONL file, for local runs) and, in
+    :mod:`mondo_evidence_browser.decision_store`, a folder of files and a GitHub
+    repository. ``tests/test_decision_store_contract.py`` is the contract; a database
+    store (the likely end state at scale) only has to pass it to drop in.
+    """
 
     def append(self, decision: Mapping[str, Any]) -> None:
-        """Store one decision; never overwrite."""
+        """Store one decision; never overwrite or edit one."""
         ...
 
     def for_record(self, record_id: str, fresh: bool = False) -> list[dict[str, Any]]:
         """A record's decisions, oldest first; ``fresh`` skips any cache."""
         ...
 
+    def since(self, when: str | None) -> list[dict[str, Any]]:
+        """Decisions made after ``when`` (an ISO time; None for all)."""
+        ...
+
+    def latest(self) -> dict[str, dict[str, Any]]:
+        """The current (latest) decision per record."""
+        ...
+
 
 def sign_off(
     records: RecordSource,
-    log: DecisionSink,
+    log: DecisionStore,
     registry: Registry,
     form: Mapping[str, Any],
     *,

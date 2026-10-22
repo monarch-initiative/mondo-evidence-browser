@@ -392,3 +392,71 @@ def test_recent_decisions_give_live_statuses_for_the_list(client: TestClient) ->
     assert client.get("/api/decisions/recent", params={"since": decided_at}).json() == {
         "statuses": {}
     }
+
+
+def test_github_app_settings_come_from_the_environment() -> None:
+    """Hosts often keep a PEM key on one line, with literal backslash-n separators."""
+    from tests.github_api import APP_ID, APP_PRIVATE_KEY
+
+    settings = ServiceSettings.from_env(
+        {
+            "MEB_DECISIONS_REPO": "owner/name",
+            "MEB_GITHUB_APP_ID": f" {APP_ID} ",
+            "MEB_GITHUB_APP_PRIVATE_KEY": APP_PRIVATE_KEY.replace("\n", "\\n"),
+        }
+    )
+    assert settings.github_app_id == APP_ID
+    assert settings.github_app_private_key == APP_PRIVATE_KEY.strip()
+
+
+def test_the_stateless_service_runs_on_github_app_credentials(
+    settings: ServiceSettings, tmp_path: Path
+) -> None:
+    from tests.github_api import APP_ID, APP_PRIVATE_KEY, REPO, FakeContentsAPI
+
+    assert settings.site_dir is not None
+    github = FakeContentsAPI()
+    stateless = ServiceSettings(
+        index_path=tmp_path / "none.db",
+        decisions_path=tmp_path / "none.jsonl",
+        config_dir=CONFIG,
+        orcid_client_id=CLIENT_ID,
+        orcid_base_url=ORCID_BASE,
+        lookup_url="https://data.example.org/lookup/",
+        decisions_repo=REPO,
+        github_app_id=APP_ID,
+        github_app_private_key=APP_PRIVATE_KEY,
+    )
+    client = TestClient(
+        create_service(
+            stateless,
+            orcid_transport=jwks_endpoint(),
+            lookup_transport=_static(settings.site_dir / "data" / "lookup"),
+            github_transport=github.transport(),
+        )
+    )
+    entry = client.get(f"/api/records/{PACKET}").json()["record"]
+    response = _post(
+        client,
+        {
+            "seen_version": entry["record_version"],
+            "seen_rule_version": entry["inclusion_score"]["rule_version"],
+            "values": {"outcome": "accepted"},
+        },
+    )
+    assert response.status_code == 201, response.text
+    assert github.issued and len(github.files) == 1
+
+
+def test_decisions_repo_needs_credentials(tmp_path: Path) -> None:
+    from tests.github_api import REPO
+
+    stateless = ServiceSettings(
+        index_path=tmp_path / "none.db",
+        decisions_path=tmp_path / "none.jsonl",
+        config_dir=CONFIG,
+        lookup_url="https://data.example.org/lookup/",
+        decisions_repo=REPO,
+    )
+    with pytest.raises(ValueError, match="MEB_GITHUB_APP_ID"):
+        create_service(stateless)

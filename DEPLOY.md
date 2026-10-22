@@ -31,7 +31,7 @@ GitHub Actions (pages.yaml)          Vercel function (app.py) ── sign-off se
 Free tiers have limits, all ample for curation:
 - Vercel Hobby is for non-commercial use, with 1M function calls and 4 CPU-hours a
   month; the first call after a quiet spell takes a second or two longer;
-- GitHub's API allows 5,000 requests an hour per token;
+- GitHub's API allows 5,000 requests an hour per app installation or token;
 - Pages and Hugging Face have fair-use bandwidth.
 
 Below, `LOOKUP_URL` is where the build's lookup shards are:
@@ -45,18 +45,37 @@ that it has a `main` branch. Public means curators' ORCID iDs and rationales are
 visible, which is usual for open curation; it can be private, but then the Pages
 build needs a token to read it.
 
-## 2. A GitHub token that can write only there
+## 2. A GitHub App that can write only there
 
-GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained
-tokens** → Generate new token:
+The sign-off service commits decisions as a GitHub App rather than as you: the app
+gets a bot identity, can write only where it is installed, and its tokens last an
+hour and renew themselves. It is free.
 
-- Resource owner: you
-- Repository access: **Only select repositories** → `mondo-evidence-decisions`
-- Permissions → Repository permissions → **Contents: Read and write**
-- Expiration: up to a year (renew it in Vercel when it expires, then redeploy)
+1. GitHub → Settings → Developer settings → **GitHub Apps** → **New GitHub App**:
+   - GitHub App name: e.g. `mondo-evidence-signoff` (names are global; add a suffix if
+     it is taken)
+   - Homepage URL: `https://yaseminbridges.github.io/mondo-evidence-browser/`
+   - Webhook: untick **Active**
+   - Repository permissions → **Contents: Read and write** (Metadata: read-only is
+     added for you)
+   - Where can this GitHub App be installed: **Only on this account**
+   - **Create GitHub App**.
+2. On the app's page, note the **App ID**, then **Generate a private key**. A `.pem`
+   file downloads: keep it out of this repository.
+3. **Install App** → your account → **Only select repositories** →
+   `mondo-evidence-decisions` → Install.
 
-Copy the token. You'll paste it into Vercel's environment variables in step 3. Don't put it
-anywhere in this repository.
+You'll paste the App ID and the whole `.pem` file into Vercel in step 3.
+
+<details><summary>Or a personal token instead</summary>
+
+A fine-grained personal access token also works (Settings → Developer settings →
+Personal access tokens → Fine-grained tokens): only `mondo-evidence-decisions`,
+**Contents: Read and write**, expiring within a year. Set it as `MEB_GITHUB_TOKEN`
+instead of the two app variables. Commits then appear as you, and the token has to
+be renewed by hand. If both are set, the app is used.
+
+</details>
 
 ## 3. Vercel
 
@@ -74,7 +93,8 @@ anywhere in this repository.
    | `MEB_LOOKUP_URL` | `LOOKUP_URL` (above) |
    | `MEB_DECISIONS_REPO` | `yaseminbridges/mondo-evidence-decisions` |
    | `MEB_ALLOWED_ORIGINS` | `https://yaseminbridges.github.io` |
-   | `MEB_GITHUB_TOKEN` | the token from step 2 (tick **Sensitive**) |
+   | `MEB_GITHUB_APP_ID` | the App ID from step 2 |
+| `MEB_GITHUB_APP_PRIVATE_KEY` | the whole `.pem` file from step 2, pasted as it is (tick **Sensitive**) |
 
 4. **Deploy.** The service's address is shown as the production domain, e.g.
    `https://mondo-evidence-browser.vercel.app`. Check it at `/api/health`: it reports

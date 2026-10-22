@@ -21,7 +21,9 @@ decisions are committed to a GitHub repository (``MEB_DECISIONS_REPO``).
 ``MEB_DECISIONS_REPO``     GitHub repository ("owner/name") to commit decisions to;
                            replaces the local log
 ``MEB_DECISIONS_BRANCH``   its branch (default ``main``)
-``MEB_GITHUB_TOKEN``       fine-grained token that can write only to that repository
+``MEB_GITHUB_APP_ID``      GitHub App installed on that repository (preferred) …
+``MEB_GITHUB_APP_PRIVATE_KEY``  … and its private key (PEM; ``\n`` escapes allowed)
+``MEB_GITHUB_TOKEN``       or a fine-grained token that can write only to that repository
 ``ORCID_CLIENT_ID``        ORCID API client id (the id_token audience)
 ``ORCID_BASE_URL``         ``https://sandbox.orcid.org`` (default) or ``https://orcid.org``
 =========================  =====================================================
@@ -44,8 +46,12 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from mondo_evidence_browser.decision_store import DecisionStoreError, GitHubDecisionStore
-from mondo_evidence_browser.decisions import DecisionLog, Refusal, sign_off
+from mondo_evidence_browser.decision_store import (
+    DecisionStoreError,
+    GitHubAppToken,
+    GitHubDecisionStore,
+)
+from mondo_evidence_browser.decisions import DecisionLog, DecisionStore, Refusal, sign_off
 from mondo_evidence_browser.index import EvidenceIndex
 from mondo_evidence_browser.lookup import IndexSource, LookupUnavailable, ShardLookup
 from mondo_evidence_browser.records import review_status
@@ -69,6 +75,8 @@ class ServiceSettings:
     decisions_repo: str | None = None
     decisions_branch: str = "main"
     github_token: str | None = None
+    github_app_id: str | None = None
+    github_app_private_key: str | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> ServiceSettings:
@@ -94,6 +102,10 @@ class ServiceSettings:
             decisions_repo=env.get("MEB_DECISIONS_REPO") or None,
             decisions_branch=env.get("MEB_DECISIONS_BRANCH", "main"),
             github_token=env.get("MEB_GITHUB_TOKEN") or None,
+            github_app_id=env.get("MEB_GITHUB_APP_ID") or None,
+            github_app_private_key=(
+                env.get("MEB_GITHUB_APP_PRIVATE_KEY", "").replace("\\n", "\n").strip() or None
+            ),
         )
 
 
@@ -193,18 +205,29 @@ def create_service(
         if settings.lookup_url
         else IndexSource(EvidenceIndex(settings.index_path, spec))
     )
-    if settings.decisions_repo and not settings.github_token:
-        raise ValueError("MEB_DECISIONS_REPO is set but MEB_GITHUB_TOKEN is not")
-    log: GitHubDecisionStore | DecisionLog = (
-        GitHubDecisionStore(
+    log: DecisionStore = DecisionLog(settings.decisions_path)
+    if settings.decisions_repo:
+        credentials: str | GitHubAppToken
+        if settings.github_app_id and settings.github_app_private_key:
+            credentials = GitHubAppToken(
+                settings.github_app_id,
+                settings.github_app_private_key,
+                settings.decisions_repo,
+                transport=github_transport,
+            )
+        elif settings.github_token:
+            credentials = settings.github_token
+        else:
+            raise ValueError(
+                "MEB_DECISIONS_REPO is set but neither MEB_GITHUB_APP_ID with "
+                "MEB_GITHUB_APP_PRIVATE_KEY nor MEB_GITHUB_TOKEN is"
+            )
+        log = GitHubDecisionStore(
             settings.decisions_repo,
-            settings.github_token or "",
+            credentials,
             branch=settings.decisions_branch,
             transport=github_transport,
         )
-        if settings.decisions_repo
-        else DecisionLog(settings.decisions_path)
-    )
     registry = Registry.from_dir(settings.config_dir)
     verifier = (
         OrcidVerifier(settings.orcid_base_url, settings.orcid_client_id, orcid_transport)

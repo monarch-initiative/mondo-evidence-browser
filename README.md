@@ -77,6 +77,37 @@ ruff. `just test-unit` and `just test-browser` run each half on its own.
       decision first.
   - Filter counts such as "Unreviewed (2,596)" still change only at the next build.
 
+## Where sign-offs are kept
+
+A sign-off is a new, append-only record pointing at (record ID, record version). It
+never edits the evidence record: evidence lines are immutable (D-052), and a later
+change to the record shows as "signed off on an older version". There were three
+ways to get sign-offs back to a source of record:
+
+| | How | Signers need | Trade-off |
+|---|---|---|---|
+| (a) | The site opens a prefilled GitHub issue form; an Action verifies the ORCID token and commits the file | a GitHub account | no backend, but minutes of latency and public issues |
+| **(b)** | **A small serverless endpoint verifies the ORCID login and commits as a GitHub App** | **only ORCID** | **what's built** ([`app.py`](app.py) on Vercel) |
+| (c) | A database (e.g. Postgres or Supabase) as the system of record, exported to GitHub | only ORCID | the likely end state at scale |
+
+Git works as a store of sign-offs at prototype volume. It is the wrong store at
+300K+ records times several reviewers: one file per decision means a checkout of
+millions of files for every build, and listing recent sign-offs leans on GitHub's
+API (5,000 requests an hour). So the stores sit behind one interface,
+`DecisionStore` in [`decisions.py`](src/mondo_evidence_browser/decisions.py), with a
+contract test that every store passes
+([`test_decision_store_contract.py`](tests/test_decision_store_contract.py)):
+
+- a JSONL file, for local runs;
+- a folder of decision files (a checkout of the decisions repository), which the
+  build reads;
+- the GitHub repository, which the deployed service writes to.
+
+Moving to (c) is a new store class that passes the same tests, a setting to pick it
+in the service and the build, and a scheduled export of decisions to GitHub for an
+open, versioned record. Nothing else changes: the site, the sign-off rules and the
+decision format stay as they are.
+
 ## Scale
 
 Measured on 600,000 records: the 6,495 real packets copied under new ids, with

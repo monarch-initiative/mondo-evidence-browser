@@ -29,7 +29,7 @@ STATELESS = {
 
 def _load(monkeypatch: pytest.MonkeyPatch, env: dict[str, str]) -> ModuleType:
     """Import ``app.py`` afresh, as Vercel does, from the repository root."""
-    for name in [*STATELESS, "MEB_SITE"]:
+    for name in [*STATELESS, "MEB_SITE", "MEB_GITHUB_APP_ID", "MEB_GITHUB_APP_PRIVATE_KEY"]:
         monkeypatch.delenv(name, raising=False)
     for name, value in env.items():
         monkeypatch.setenv(name, value)

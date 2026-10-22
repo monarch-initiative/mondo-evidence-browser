@@ -6,8 +6,9 @@ ever rewritten, and a record's history is one directory listing. The same layout
 works in two places:
 
 - :class:`GitHubDecisionStore`: the sign-off service commits each decision to a GitHub
-  repository through the REST contents API (a fine-grained token that can write only
-  to that repository). Free, durable and versioned.
+  repository through the REST contents API. It signs in as a GitHub App installed
+  only on that repository (:class:`GitHubAppToken`: hour-long tokens, commits by the
+  app's bot), or with a fine-grained personal token. Free, durable and versioned.
 - :class:`DirectoryDecisionStore`: a checkout of that repository, which the build reads
   to set review statuses (and which local runs and tests can write to).
 
@@ -20,12 +21,13 @@ import base64
 import json
 import re
 import time
-from collections.abc import Iterator, Mapping
+from collections.abc import Generator, Iterator, Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import httpx
+import jwt
 
 from mondo_evidence_browser.lookup import shard_of
 
@@ -81,6 +83,80 @@ def record_of(message: str) -> str | None:
     return found.group(1) if found else None
 
 
+class GitHubAppToken:
+    """Installation tokens for a GitHub App, renewed before they expire.
+
+    The app's private key signs a ten-minute JWT; GitHub exchanges it for an
+    installation token valid for an hour, limited to the repositories (and
+    permissions) the app is installed with. Nothing here belongs to a person.
+    """
+
+    RENEW_BEFORE = timedelta(minutes=5)
+
+    def __init__(
+        self,
+        app_id: str,
+        private_key: str,
+        repo: str,
+        installation_id: int | None = None,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
+        """Sign in as app ``app_id`` on the installation that covers ``repo``."""
+        self.app_id = app_id
+        self.repo = repo
+        self._key = private_key
+        self._installation = installation_id
+        self._token: str | None = None
+        self._expires = datetime.min.replace(tzinfo=UTC)
+        self._client = httpx.Client(
+            base_url=API,
+            transport=transport,
+            timeout=20,
+            headers={"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"},
+        )
+
+    def _app_jwt(self) -> str:
+        now = int(time.time())
+        claims = {"iat": now - 60, "exp": now + 540, "iss": self.app_id}
+        return jwt.encode(claims, self._key, algorithm="RS256")
+
+    def _call(self, method: str, url: str) -> dict[str, Any]:
+        response = self._client.request(
+            method, url, headers={"Authorization": f"Bearer {self._app_jwt()}"}
+        )
+        if response.status_code >= 400:
+            message = response.json().get("message", "") if response.content else ""
+            raise DecisionStoreError(
+                f"GitHub refused the app sign-in (HTTP {response.status_code}): {message}"
+            )
+        body: dict[str, Any] = response.json()
+        return body
+
+    def token(self) -> str:
+        """A valid installation token, renewing it when it is about to expire."""
+        if self._token is None or self._expires - datetime.now(UTC) < self.RENEW_BEFORE:
+            if self._installation is None:
+                self._installation = int(
+                    self._call("GET", f"/repos/{self.repo}/installation")["id"]
+                )
+            issued = self._call("POST", f"/app/installations/{self._installation}/access_tokens")
+            self._token = str(issued["token"])
+            self._expires = datetime.fromisoformat(issued["expires_at"].replace("Z", "+00:00"))
+        return self._token
+
+
+class _Bearer(httpx.Auth):
+    """A fixed token, or a GitHub App's current installation token, on every request."""
+
+    def __init__(self, credentials: str | GitHubAppToken) -> None:
+        self.credentials = credentials
+
+    def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
+        token = self.credentials if isinstance(self.credentials, str) else self.credentials.token()
+        request.headers["Authorization"] = f"Bearer {token}"
+        yield request
+
+
 class DirectoryDecisionStore:
     """Decisions as files under ``root`` (a checkout of the decisions repository)."""
 
@@ -98,9 +174,14 @@ class DirectoryDecisionStore:
     def _files(self, directory: Path) -> Iterator[Path]:
         return iter(sorted(directory.glob("**/*.json"))) if directory.exists() else iter(())
 
-    def for_record(self, record_id: str) -> list[dict[str, Any]]:
-        """A record's decisions, oldest first."""
+    def for_record(self, record_id: str, fresh: bool = False) -> list[dict[str, Any]]:
+        """A record's decisions, oldest first (files are always read fresh)."""
         return [json.loads(p.read_text()) for p in self._files(self.root / _record_dir(record_id))]
+
+    def since(self, when: str | None) -> list[dict[str, Any]]:
+        """Decisions made after ``when`` (an ISO time; None for all)."""
+        decisions = (json.loads(p.read_text()) for p in self._files(self.root / "decisions"))
+        return [d for d in decisions if when is None or d["decided_at"] > when]
 
     def latest(self) -> dict[str, dict[str, Any]]:
         """The current (latest) decision per record."""
@@ -117,13 +198,13 @@ class GitHubDecisionStore:
     def __init__(
         self,
         repo: str,
-        token: str,
+        token: str | GitHubAppToken,
         branch: str = "main",
         transport: httpx.BaseTransport | None = None,
         ttl: float = 60.0,
         ttl_recent: float = 30.0,
     ) -> None:
-        """Write to ``repo`` ("owner/name") on ``branch`` with a token that may write there.
+        """Write to ``repo`` ("owner/name") on ``branch`` as a GitHub App or with a token.
 
         Histories are cached for ``ttl`` seconds and the list of recent sign-offs for
         ``ttl_recent``, which bounds GitHub API use whatever the number of curators.
@@ -136,11 +217,8 @@ class GitHubDecisionStore:
             base_url=API,
             transport=transport,
             timeout=20,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
+            auth=_Bearer(token),
+            headers={"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"},
         )
         self._history: dict[str, tuple[float, list[dict[str, Any]]]] = {}
         self._files: dict[str, dict[str, Any]] = {}  # decision files never change
@@ -216,6 +294,13 @@ class GitHubDecisionStore:
             for d in history
             if when is None or d["decided_at"] > when
         ]
+
+    def latest(self) -> dict[str, dict[str, Any]]:
+        """The current (latest) decision per record."""
+        latest: dict[str, dict[str, Any]] = {}
+        for decision in sorted(self.since(None), key=lambda d: d["decided_at"]):
+            latest[decision["packet_id"]] = decision
+        return latest
 
     def _poll(self, when: str | None, exhaustive: bool) -> None:
         params: dict[str, Any] = {"sha": self.branch, "path": "decisions", "per_page": 100}

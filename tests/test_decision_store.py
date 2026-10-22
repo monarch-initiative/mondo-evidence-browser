@@ -142,3 +142,54 @@ def test_fresh_history_skips_the_cache(api: FakeContentsAPI, store: GitHubDecisi
     store.append(_decision("dec_1", "2026-10-21T12:00:00+00:00"))
     assert other.for_record(PACKET) == []  # cached
     assert [d["decision_id"] for d in other.for_record(PACKET, fresh=True)] == ["dec_1"]
+
+
+def test_a_github_app_signs_in_with_short_lived_installation_tokens() -> None:
+    """The service holds GitHub App credentials, not a person's token (option b)."""
+    from mondo_evidence_browser.decision_store import GitHubAppToken
+    from tests.github_api import APP_ID, APP_PRIVATE_KEY
+
+    api = FakeContentsAPI()
+    app = GitHubAppToken(APP_ID, APP_PRIVATE_KEY, REPO, transport=api.transport())
+    store = GitHubDecisionStore(REPO, app, transport=api.transport())
+    store.append(_decision("dec_1", "2026-10-21T12:00:00+00:00"))
+    assert [d["decision_id"] for d in store.for_record(PACKET, fresh=True)] == ["dec_1"]
+    assert api.issued == ["ghs_installation_1"]  # one token, reused while it is valid
+    assert all(
+        r.headers["authorization"] == "Bearer ghs_installation_1"
+        for r in api.requests
+        if "/contents/" in r.url.path
+    )
+
+
+def test_installation_tokens_are_renewed_before_they_expire() -> None:
+    from datetime import timedelta
+
+    from mondo_evidence_browser.decision_store import GitHubAppToken
+    from tests.github_api import APP_ID, APP_PRIVATE_KEY
+
+    api = FakeContentsAPI(token_lifetime=timedelta(minutes=2))  # inside the renewal margin
+    app = GitHubAppToken(APP_ID, APP_PRIVATE_KEY, REPO, transport=api.transport())
+    store = GitHubDecisionStore(REPO, app, transport=api.transport())
+    store.for_record(PACKET, fresh=True)
+    store.for_record(PACKET, fresh=True)
+    assert api.issued == ["ghs_installation_1", "ghs_installation_2"]
+
+
+def test_a_wrong_app_key_is_reported() -> None:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    from mondo_evidence_browser.decision_store import GitHubAppToken
+    from tests.github_api import APP_ID
+
+    other = rsa.generate_private_key(public_exponent=65537, key_size=2048).private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    api = FakeContentsAPI()
+    app = GitHubAppToken(APP_ID, other.decode(), REPO, transport=api.transport())
+    store = GitHubDecisionStore(REPO, app, transport=api.transport())
+    with pytest.raises(DecisionStoreError, match="401"):
+        store.for_record(PACKET, fresh=True)
