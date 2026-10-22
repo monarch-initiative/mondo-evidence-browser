@@ -13,7 +13,9 @@ function summary(spec, record) {
     const value = getPath(record, column.path);
     if (isEmpty(value)) continue;
     const slot = { ...column, name: column.name, enum: column.enum, layout: null };
-    rows.push(el("dt", {}, column.title), el("dd", { "data-column": column.name }, renderValue(spec, slot, value)));
+    rows.push(
+      el("div", { class: "stat" }, el("dt", {}, column.title), el("dd", { "data-column": column.name }, renderValue(spec, slot, value))),
+    );
   }
   return el("dl", { class: "summary" }, rows);
 }
@@ -30,17 +32,34 @@ async function service(config, path, options = {}) {
   return { ok: response.ok, status: response.status, body };
 }
 
+// Each decision, newest first: a heading from the history class's title template, the
+// values the curator entered (the form's fields), and the full decision on demand.
 function renderHistory(container, spec, decisions) {
-  container.replaceChildren(el("h3", {}, "History"));
+  container.replaceChildren(el("h2", {}, "History"));
   if (!decisions.length) {
     container.append(el("p", { class: "muted" }, "No sign-offs yet."));
     return;
   }
+  const template = spec.classes[spec.history]?.title_template;
+  const entered = (decision) =>
+    (spec.form?.fields || [])
+      .filter((field) => !isEmpty(decision[field.name]))
+      .map((field) =>
+        el("div", { class: "stat" }, el("dt", {}, slotTitle(field)), el("dd", {}, renderValue(spec, { ...field, layout: null }, decision[field.name]))),
+      );
   container.append(
     el(
       "ol",
       { class: "history" },
-      [...decisions].reverse().map((d) => el("li", { class: "card" }, renderObject(spec, spec.history, d))),
+      [...decisions].reverse().map((d) =>
+        el(
+          "li",
+          { class: "decision" },
+          template ? el("p", { class: "decision-title" }, fillTemplate(template, d)) : null,
+          el("dl", { class: "summary compact" }, entered(d)),
+          el("details", { class: "more" }, el("summary", {}, "Full decision"), renderObject(spec, spec.history, d)),
+        ),
+      ),
     ),
   );
 }
@@ -177,7 +196,7 @@ async function main() {
       el("p", { class: "crumbs" }, el("a", { href: "index.html" }, "Records"), " › ", el("code", {}, record[spec.key])),
       el("h1", {}, title),
       summary(spec, record),
-      el("section", { class: "panel detail" }, renderObject(spec, spec.root, record)),
+      el("section", { class: "panel detail" }, el("h2", {}, "Details"), renderObject(spec, spec.root, record)),
       signoff,
       history,
       el("details", {}, el("summary", {}, "Raw record"), el("pre", { class: "raw" }, JSON.stringify(record, null, 2))),
@@ -187,7 +206,7 @@ async function main() {
       const result = await service(config, `/api/records/${encodeURIComponent(record[spec.key])}/decisions`);
       if (!result.ok) {
         history.replaceChildren(
-          el("h3", {}, "History"),
+          el("h2", {}, "History"),
           el("p", { class: "form-message error" }, `Could not load the sign-off history: ${result.body.detail || `HTTP ${result.status}`}`),
         );
         return;

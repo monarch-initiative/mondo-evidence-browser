@@ -312,6 +312,7 @@ classes:
       (D-051, D-053).
     annotations:
       browser_history: true
+      browser_title: "Signed off by {curator.name} on {decided_at}"
     attributes:
       decision_id:
         identifier: true

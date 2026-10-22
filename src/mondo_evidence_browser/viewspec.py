@@ -122,10 +122,11 @@ class _Builder:
 
     def class_entry(self, name: str) -> dict[str, Any]:
         cls = self.sv.get_class(name)
-        _annotations(cls, CLASS_ANNOTATIONS)
+        ann = _annotations(cls, CLASS_ANNOTATIONS)
         return {
             "name": name,
             "title": cls.title or name,
+            "title_template": ann.get("browser_title"),
             "description": cls.description,
             "ancestors": list(self.sv.class_ancestors(name))[1:],
             "slots": [self.slot_entry(s) for s in self.sv.class_induced_slots(name)],

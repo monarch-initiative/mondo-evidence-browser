@@ -441,6 +441,7 @@ function renderPager(container, state, total, rows, go) {
   const next = () =>
     go({ ...state, page: state.page + 1, after: cursors ? rows.at(-1).__rank : null, before: null });
   if (state.page > 1) container.append(el("button", { type: "button", class: "link", onclick: previous }, "← Previous"));
+  if (pages > 1) container.append(el("span", { class: "muted" }, `Page ${state.page.toLocaleString()} of ${pages.toLocaleString()}`));
   if (state.page < pages) container.append(el("button", { type: "button", class: "link", onclick: next }, "Next →"));
 }
 

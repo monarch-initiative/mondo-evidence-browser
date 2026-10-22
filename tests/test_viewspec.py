@@ -197,3 +197,11 @@ def test_status_column_is_marked_in_the_schema(spec: dict[str, Any]) -> None:
     """The column the list updates live from recent sign-offs (browser_status)."""
     assert spec["status"] == "review_status"
     assert spec["status"] in [c["name"] for c in spec["columns"]]
+
+
+def test_classes_carry_their_title_template(spec: dict[str, Any]) -> None:
+    """A history entry is headed from its class's browser_title, like a record."""
+    assert spec["classes"]["Decision"]["title_template"] == (
+        "Signed off by {curator.name} on {decided_at}"
+    )
+    assert spec["classes"]["SignOff"]["title_template"] is None
