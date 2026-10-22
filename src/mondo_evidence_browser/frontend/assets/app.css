@@ -400,7 +400,10 @@ details.more dl.object { font-size: 0.85rem; grid-template-columns: minmax(110px
   main { padding-top: 20px; }
   h1, #record h1 { font-size: 1.45rem; }
   .panel { padding: 16px; }
-  dl.object { grid-template-columns: 1fr; }
+  dl.object, dl.object dl.object, details.more dl.object { grid-template-columns: minmax(0, 1fr); }
+  dl.object > dd.nested > dl.object { padding: 4px 10px; }
+  dl.summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  dl.summary .stat { padding: 8px 12px; }
   dl.object > dt { border-bottom: 0; padding-bottom: 0; font-size: 0.82rem; }
   dl.object > dd { padding-top: 2px; }
   .tabs { display: flex; }
