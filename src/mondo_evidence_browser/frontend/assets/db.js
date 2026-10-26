@@ -10,7 +10,7 @@ export function siteUrl(path) {
   return new URL(path, siteRoot).href;
 }
 
-async function loadJSON(path) {
+export async function loadJSON(path) {
   const response = await fetch(siteUrl(path), { cache: "no-cache" });
   if (!response.ok) throw new Error(`${path}: HTTP ${response.status}`);
   return response.json();

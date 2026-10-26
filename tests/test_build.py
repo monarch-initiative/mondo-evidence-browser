@@ -216,3 +216,30 @@ def test_decisions_can_come_from_a_decisions_repo_checkout(
     build(config(tmp_path, decisions_path=checkout))
     record = EvidenceIndex(tmp_path / "var" / "evidence.db").get(PACKET)
     assert record is not None and record["review_status"] == "controversial"
+
+
+def test_build_writes_the_first_page_of_each_tab(tmp_path: Path) -> None:
+    """The list shows its default view from one small file, before the database opens."""
+    build(config(tmp_path))
+    site = tmp_path / "site"
+    site_config = json.loads((site / "config.json").read_text())
+    assert site_config["first_page"] == "first-page.json"
+    first = json.loads((site / "first-page.json").read_text())
+    index = EvidenceIndex(tmp_path / "var" / "evidence.db")
+    assert first["meta"] == index.meta()
+    columns = {"key", *(c["name"] for c in build_view_spec()["columns"])}
+    assert set(first["pages"]) == set(first["meta"]["tab_counts"])
+    for tab, count in first["meta"]["tab_counts"].items():
+        rows = first["pages"][tab]
+        assert len(rows) == min(50, count)
+        # As the list reads page 1: the top of the tab by the default sort's rank.
+        expected = [
+            key
+            for (key,) in index.conn.execute(
+                "SELECT key FROM records WHERE tab = ? "
+                "ORDER BY __rank__inclusion_score__value DESC LIMIT 50",
+                (tab,),
+            )
+        ]
+        assert [r["key"] for r in rows] == expected
+        assert all(columns <= set(r) for r in rows)

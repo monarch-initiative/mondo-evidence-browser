@@ -2,7 +2,7 @@
 // derived from the view spec. State lives in the URL so every view can be linked.
 
 import { renderWho } from "./auth.js";
-import { getRecord, ident, loadSite, openDb, readMeta, siteUrl } from "./db.js";
+import { getRecord, ident, loadJSON, loadSite, openDb, readMeta, siteUrl } from "./db.js";
 import { el, enumEntry, renderExplainer, renderList, renderPreview, renderScalar } from "./render.js";
 
 const PAGE_SIZE = 50;
@@ -138,6 +138,19 @@ async function countRows(db, spec, state, meta) {
   if (match === null) return 0;
   const [row] = await db.query("SELECT count(*) AS n FROM search WHERE search MATCH ?", [match]);
   return row.n;
+}
+
+// The view first-page.json holds for each tab: the default sort, page 1, no search or
+// filters. It shows without the database, which then opens in the background.
+function isDefaultView(spec, state) {
+  return (
+    !isFiltered(state) &&
+    state.page === 1 &&
+    state.after == null &&
+    state.before == null &&
+    (state.sort ?? null) === (spec.default_sort?.column ?? null) &&
+    (spec.default_sort ? state.dir === spec.default_sort.direction : true)
+  );
 }
 
 function isFiltered(state) {
@@ -334,7 +347,7 @@ function renderControls(container, spec, state, meta, go) {
   };
 }
 
-async function togglePreview(db, spec, tr, button, href) {
+async function togglePreview(dbReady, spec, tr, button, href) {
   const key = tr.dataset.key;
   const open = tr.nextElementSibling?.matches(`tr.preview[data-key="${CSS.escape(key)}"]`);
   if (open) {
@@ -347,7 +360,7 @@ async function togglePreview(db, spec, tr, button, href) {
   tr.after(previewRow);
   button.setAttribute("aria-expanded", "true");
   // Only the expanded record is fetched, one indexed lookup.
-  const record = await getRecord(db, key);
+  const record = await getRecord(await dbReady, key);
   cell.replaceChildren(record ? renderPreview(spec, record, href) : el("p", {}, "Record not found."));
 }
 
@@ -450,8 +463,11 @@ async function main() {
   try {
     const { spec, config } = await loadSite();
     renderWho(document.getElementById("who"), config, el);
-    const db = await openDb(config);
-    const meta = await readMeta(db);
+    // Open the database in the background; the default view does not need it.
+    const dbReady = openDb(config);
+    dbReady.catch(() => {}); // a failure surfaces where a view awaits it
+    const firstPage = config.first_page ? await loadJSON(config.first_page).catch(() => null) : null;
+    const meta = firstPage ? firstPage.meta : await readMeta(await dbReady);
     document.getElementById("foot").textContent =
       `${meta.record_count.toLocaleString()} records · schema ${spec.schema.name} ${spec.schema.version} · ` +
       `Mondo ${meta.mondo_release} · scores ${meta.rule_id} ${meta.rule_version} · built ${meta.built_at}`;
@@ -476,14 +492,16 @@ async function main() {
       renderTabs(tabs, spec, state, meta, go);
       renderControls(controls, spec, state, meta, go);
       document.body.dataset.loading = "true";
+      const instant = firstPage && isDefaultView(spec, state) ? firstPage.pages[state.tab ?? ""] : null;
+      const db = instant ? null : await dbReady;
       const total = await countRows(db, spec, state, meta);
       const shown = effectiveState(spec, state, meta, total);
-      const rows = await fetchPage(db, spec, shown.state, meta);
+      const rows = instant ?? (await fetchPage(db, spec, shown.state, meta));
       const first = total ? (state.page - 1) * PAGE_SIZE + 1 : 0;
       count.textContent = `${first.toLocaleString()}–${((state.page - 1) * PAGE_SIZE + rows.length).toLocaleString()} of ${total.toLocaleString()} records`;
       notice.textContent = shown.notice || "";
       notice.hidden = !shown.notice;
-      renderTable(table, spec, shown.state, rows, go, db, await live);
+      renderTable(table, spec, shown.state, rows, go, dbReady, await live);
       renderPager(pager, shown.state, total, rows, go);
       document.body.dataset.loading = "false";
     }

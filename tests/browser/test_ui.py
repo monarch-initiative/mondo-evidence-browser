@@ -467,3 +467,35 @@ def test_a_decision_made_while_the_record_is_open_is_shown_before_signing(
     expect(message).to_have_text("Sign-off recorded.")
     expect(page.locator("#history li")).to_have_count(2)
     expect(page.locator('dd[data-column="review_status"]')).to_contain_text("Accepted")
+
+
+def test_the_first_page_shows_without_reading_the_database(page: Page, site: Site) -> None:
+    """The default view comes from first-page.json, so it is instant on any data host."""
+    # What the database gives for the default view: the default tab by score rank.
+    expected = _keys(
+        site,
+        "SELECT key FROM records WHERE tab = 'IN_MONDO' "
+        "ORDER BY __rank__inclusion_score__value DESC LIMIT 50",
+    )
+    count = f"1–{len(expected)} of {site.meta['tab_counts']['IN_MONDO']:,} records"
+    page.route(re.compile(r".*/data/evidence\.(db|sqlite\.png).*"), lambda route: route.abort())
+    page.goto(f"{site.url}/")
+    expect(page.locator("table.records tbody tr").first).to_be_visible()
+    assert _row_keys(page) == expected
+    expect(page.locator("#count")).to_have_text(count)
+
+
+def test_other_views_still_come_from_the_database(page: Page, site: Site) -> None:
+    _open_list(page, site)
+    default = _row_keys(page)
+    _open_list(page, site, "?q=syndrome")
+    keys = _row_keys(page)
+    assert keys and keys != default
+    expected = _keys(
+        site,
+        "SELECT key FROM records WHERE tab = ? AND rowid IN "
+        "(SELECT rowid FROM search WHERE search MATCH ?) ORDER BY rowid LIMIT 50",
+        "IN_MONDO",  # the default tab
+        '"syndrome"*',
+    )
+    assert keys == expected

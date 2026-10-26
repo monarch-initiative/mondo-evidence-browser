@@ -149,6 +149,46 @@ def _vendor(site_dir: Path, node_modules: Path) -> None:
     shutil.copy2(package / "LICENSE", target / "LICENSE")
 
 
+FIRST_PAGE_SIZE = 50  # the list's page size (PAGE_SIZE in list.js)
+
+
+def first_pages(index: EvidenceIndex, spec: dict[str, Any]) -> dict[str, Any]:
+    """The list's default view of every tab, so it can show without opening the database.
+
+    Each page is read exactly as list.js reads page 1 of the default sort: the range of
+    sort ranks at the top (or bottom) of the tab, so ties come out in the same order.
+    """
+    meta = index.meta()
+    names = ["key", *(c["name"] for c in spec["columns"])]
+    sort = spec["default_sort"]
+    rank = meta["rank_columns"].get(sort["column"]) if sort else None
+    pages: dict[str, list[dict[str, Any]]] = {}
+    for tab, count in meta["tab_counts"].items():
+        clauses, params = (["tab = ?"], [tab]) if spec["tabs"] else ([], [])
+        select = ", ".join(_ident(n) for n in names)
+        if rank is not None and sort is not None:
+            desc = sort["direction"] == "desc"
+            start = count - FIRST_PAGE_SIZE if desc else 0
+            clauses.append(f"{_ident(rank)} > ? AND {_ident(rank)} <= ?")
+            params += [start, start + FIRST_PAGE_SIZE]
+            select += f", {_ident(rank)} AS __rank"
+            order = f"{_ident(rank)} {'DESC' if desc else 'ASC'}"
+        else:
+            order = "rowid"
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        cursor = index.conn.execute(
+            f"SELECT {select} FROM records {where} ORDER BY {order} LIMIT {FIRST_PAGE_SIZE}",
+            params,
+        )
+        columns = [d[0] for d in cursor.description]
+        pages[tab] = [dict(zip(columns, row, strict=True)) for row in cursor]
+    return {"meta": meta, "pages": pages}
+
+
+def _ident(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
+
 def _publish_db(index_path: Path, data: Path, base_url: str, name: str) -> dict[str, Any]:
     """Copy the index into ``data`` as ``name``, served at ``base_url``.
 
@@ -253,6 +293,10 @@ def build(cfg: BuildConfig) -> BuildReport:
             else None
         ),
     }
+    # Part of the site, not the data: it must match this build's index exactly.
+    first = first_pages(EvidenceIndex(cfg.index_path), spec)
+    (cfg.site_dir / "first-page.json").write_text(json.dumps(first, separators=(",", ":")))
+    site_config["first_page"] = "first-page.json"
     (cfg.site_dir / "config.json").write_text(json.dumps(site_config, indent=2) + "\n")
     (cfg.site_dir / "view-spec.json").write_text(json.dumps(spec, indent=1) + "\n")
 
