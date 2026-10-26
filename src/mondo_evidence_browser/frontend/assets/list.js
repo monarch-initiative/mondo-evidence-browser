@@ -306,8 +306,11 @@ function renderTabs(container, spec, state, meta, go) {
   }
 }
 
+// A search row (box and button), then a row of filters that apply as soon as one is
+// picked; an active filter stands out, and "Clear all" resets search and filters.
 function renderControls(container, spec, state, meta, go) {
   container.replaceChildren();
+  const submit = el("button", { class: "button", type: "submit" }, "Search");
   const searchable = spec.columns.filter((c) => c.search);
   if (searchable.length) {
     const input = el("input", {
@@ -317,14 +320,17 @@ function renderControls(container, spec, state, meta, go) {
       placeholder: "Search " + searchable.map((c) => c.title.toLowerCase()).join(", "),
       "aria-label": "Search records",
     });
-    container.append(el("label", { class: "control grow" }, "Search", input));
+    container.append(el("div", { class: "search-row" }, el("label", { class: "search-field" }, input), submit));
   }
+  const filters = el("div", { class: "filter-row" });
   for (const column of spec.columns.filter((c) => c.filter)) {
-    const values = meta.filter_values?.[state.tab ?? ""]?.[column.name] || {};
+    const values = { ...(meta.filter_values?.[state.tab ?? ""]?.[column.name] || {}) };
+    // A chosen value this tab doesn't have (e.g. from a link) still shows, with 0 records.
+    if (state.filters[column.name] && !(state.filters[column.name] in values)) values[state.filters[column.name]] = 0;
     const select = el(
       "select",
-      { name: column.name, "data-filter": column.name },
-      el("option", { value: "" }, "any"),
+      { name: column.name, "data-filter": column.name, onchange: () => container.requestSubmit() },
+      el("option", { value: "" }, "Any"),
       Object.entries(values)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([value, n]) => {
@@ -332,18 +338,25 @@ function renderControls(container, spec, state, meta, go) {
           return el("option", { value, selected: state.filters[column.name] === value }, `${label} (${n.toLocaleString()})`);
         }),
     );
-    container.append(el("label", { class: "control" }, column.title, select));
+    const active = Boolean(state.filters[column.name]);
+    filters.append(el("label", { class: active ? "control active" : "control" }, el("span", { class: "control-label" }, column.title), select));
   }
-  container.append(el("button", { class: "button", type: "submit" }, "Apply"));
+  if (!searchable.length) filters.append(submit);
+  if (isFiltered(state)) {
+    filters.append(
+      el("button", { type: "button", class: "link clear", onclick: () => go({ ...state, q: "", filters: {}, page: 1 }) }, "Clear all"),
+    );
+  }
+  if (filters.children.length) container.append(filters);
   container.onsubmit = (event) => {
     event.preventDefault();
     const data = new FormData(container);
-    const filters = {};
+    const chosen = {};
     for (const column of spec.columns.filter((c) => c.filter)) {
       const value = data.get(column.name);
-      if (value) filters[column.name] = value;
+      if (value) chosen[column.name] = value;
     }
-    go({ ...state, q: (data.get("q") || "").trim(), filters, page: 1 });
+    go({ ...state, q: (data.get("q") || "").trim(), filters: chosen, page: 1 });
   };
 }
 

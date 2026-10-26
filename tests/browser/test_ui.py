@@ -98,7 +98,7 @@ def test_unsortable_columns_have_no_sort_control(page: Page, site: Site) -> None
 def test_search(page: Page, site: Site) -> None:
     _open_list(page, site, "?tab=CANDIDATE")
     page.get_by_label("Search records").fill("arginase")
-    page.get_by_role("button", name="Apply").click()
+    page.get_by_role("button", name="Search", exact=True).click()
     expect(page).to_have_url(re.compile(r"q=arginase"))
     expect(page.locator("body")).to_have_attribute("data-loading", "false")
     labels = page.locator("td[data-column=statement__subject_label]").all_inner_texts()
@@ -109,8 +109,7 @@ def test_filters_use_the_counts_in_meta(page: Page, site: Site) -> None:
     _open_list(page, site)
     select = page.locator("select[data-filter=review_status]")
     expect(select.locator("option", has_text="Unreviewed")).to_have_count(1)
-    select.select_option("unreviewed")
-    page.get_by_role("button", name="Apply").click()
+    select.select_option("unreviewed")  # a filter applies as soon as it is picked
     expect(page).to_have_url(re.compile(r"review_status=unreviewed"))
     n = site.meta["filter_values"]["IN_MONDO"]["review_status"]["unreviewed"]
     expect(page.locator("#count")).to_contain_text(f"of {n} records")
@@ -514,3 +513,24 @@ def test_rows_do_not_wait_for_the_sign_off_service(page: Page, site: Site) -> No
     assert held, "the list should still ask the service for recent sign-offs"
     for route in held:
         route.fulfill(json={"statuses": {}})
+
+
+def test_active_filters_stand_out_and_clear_in_one_click(page: Page, site: Site) -> None:
+    _open_list(page, site, "?review_status=unreviewed&q=deficiency")
+    control = page.locator("label.control:has(select[data-filter=review_status])")
+    expect(control).to_have_class(re.compile(r"\bactive\b"))
+    page.get_by_role("button", name="Clear all").click()
+    expect(page).not_to_have_url(re.compile(r"review_status|q="))
+    expect(page.locator("body")).to_have_attribute("data-loading", "false")
+    expect(page.get_by_label("Search records")).to_have_value("")
+    expect(page.get_by_role("button", name="Clear all")).to_have_count(0)
+
+
+def test_a_filter_with_no_matches_still_shows_what_was_chosen(page: Page, site: Site) -> None:
+    """A link may filter on a value this tab doesn't have; say so rather than show "Any"."""
+    page.goto(f"{site.url}/?review_status=controversial")
+    expect(page.locator("#count")).to_contain_text("of 0 records")
+    select = page.locator("select[data-filter=review_status]")
+    expect(select).to_have_value("controversial")
+    expect(select.locator("option:checked")).to_contain_text("(0)")
+    expect(page.locator("#count")).to_contain_text("of 0 records")
