@@ -364,7 +364,21 @@ async function togglePreview(dbReady, spec, tr, button, href) {
   cell.replaceChildren(record ? renderPreview(spec, record, href) : el("p", {}, "Record not found."));
 }
 
-function renderTable(container, spec, state, rows, go, db, live = {}) {
+// Show the status of records signed off since this build in the rows on screen. It
+// runs when the service answers, so a slow or sleeping service never holds up the table.
+function applyLive(container, spec, live) {
+  const column = spec.columns.find((c) => c.name === spec.status);
+  if (!column) return;
+  for (const [key, recent] of Object.entries(live)) {
+    const td = container.querySelector(`tr[data-key="${CSS.escape(key)}"] td[data-column="${CSS.escape(column.name)}"]`);
+    if (!td) continue;
+    td.replaceChildren(el("span", {}, cell(spec, column, recent.status), el("span", { class: "live-mark" }, " · new")));
+    td.dataset.live = "true";
+    td.title = `Signed off by ${recent.curator} at ${recent.decided_at}, after this build`;
+  }
+}
+
+function renderTable(container, spec, state, rows, go, db) {
   const head = el(
     "tr",
     {},
@@ -409,10 +423,7 @@ function renderTable(container, spec, state, rows, go, db, live = {}) {
       { class: "row-link", "data-key": row.key },
       el("td", { class: "expand-cell" }, toggle),
       spec.columns.map((column, i) => {
-        const recent = column.name === spec.status ? live[row.key] : null;
-        const content = recent
-          ? el("span", {}, cell(spec, column, recent.status), el("span", { class: "live-mark" }, " · new"))
-          : cell(spec, column, row[column.name]);
+        const content = cell(spec, column, row[column.name]);
         // The first text column links to the record, so rows work without JS clicks too.
         const linkHere = i === spec.columns.findIndex((c) => c.kind === "string" && !c.multivalued && c.format !== "curie");
         return el(
@@ -421,8 +432,6 @@ function renderTable(container, spec, state, rows, go, db, live = {}) {
             "data-column": column.name,
             "data-label": column.title,
             class: [`k-${column.kind}`, column.format ? `f-${column.format}` : ""].join(" ").trim(),
-            "data-live": recent ? "true" : null,
-            title: recent ? `Signed off by ${recent.curator} at ${recent.decided_at}, after this build` : null,
           },
           linkHere ? el("a", { href, class: "record-link" }, content) : content,
         );
@@ -461,12 +470,14 @@ function renderPager(container, state, total, rows, go) {
 async function main() {
   const status = document.getElementById("status");
   try {
+    // The first page is fetched alongside the spec and config; it is used if the build made it.
+    const firstPageFetch = loadJSON("first-page.json").catch(() => null);
     const { spec, config } = await loadSite();
     renderWho(document.getElementById("who"), config, el);
     // Open the database in the background; the default view does not need it.
     const dbReady = openDb(config);
     dbReady.catch(() => {}); // a failure surfaces where a view awaits it
-    const firstPage = config.first_page ? await loadJSON(config.first_page).catch(() => null) : null;
+    const firstPage = config.first_page === "first-page.json" ? await firstPageFetch : null;
     const meta = firstPage ? firstPage.meta : await readMeta(await dbReady);
     document.getElementById("foot").textContent =
       `${meta.record_count.toLocaleString()} records · schema ${spec.schema.name} ${spec.schema.version} · ` +
@@ -501,9 +512,10 @@ async function main() {
       count.textContent = `${first.toLocaleString()}–${((state.page - 1) * PAGE_SIZE + rows.length).toLocaleString()} of ${total.toLocaleString()} records`;
       notice.textContent = shown.notice || "";
       notice.hidden = !shown.notice;
-      renderTable(table, spec, shown.state, rows, go, dbReady, await live);
+      renderTable(table, spec, shown.state, rows, go, dbReady);
       renderPager(pager, shown.state, total, rows, go);
       document.body.dataset.loading = "false";
+      live.then((statuses) => applyLive(table, spec, statuses));
     }
 
     async function go(state) {

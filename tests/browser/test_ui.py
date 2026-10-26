@@ -499,3 +499,18 @@ def test_other_views_still_come_from_the_database(page: Page, site: Site) -> Non
         '"syndrome"*',
     )
     assert keys == expected
+
+
+def test_rows_do_not_wait_for_the_sign_off_service(page: Page, site: Site) -> None:
+    """A sleeping service (a free host waking up) must not hold back the table."""
+    import time
+
+    held: list[Route] = []
+    page.route("**/api/decisions/recent*", lambda route: held.append(route))
+    started = time.monotonic()
+    page.goto(f"{site.url}/")
+    expect(page.locator("table.records tbody tr").first).to_be_visible(timeout=3000)
+    assert time.monotonic() - started < 3
+    assert held, "the list should still ask the service for recent sign-offs"
+    for route in held:
+        route.fulfill(json={"statuses": {}})
