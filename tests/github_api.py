@@ -15,7 +15,7 @@ import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-REPO = "yaseminbridges/mondo-evidence-decisions"
+REPO = "monarch-initiative/mondo-evidence-decisions"
 TOKEN = "github_pat_test"
 APP_ID = "123456"
 INSTALLATION = 98765

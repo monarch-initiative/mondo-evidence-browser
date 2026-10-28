@@ -230,7 +230,7 @@ Notes:
 
 **ORCID client.** Register a public API client (the sandbox for testing). Its redirect
 URI is the site's `auth.html`, for example
-`https://yaseminbridges.github.io/mondo-evidence-browser/auth.html`. The browser
+`https://monarch-initiative.github.io/mondo-evidence-browser/auth.html`. The browser
 asks for the `openid` scope; the service only needs the client id.
 
 - **Locally:** put the client id in `.env` (gitignored; template in `.env.example`).

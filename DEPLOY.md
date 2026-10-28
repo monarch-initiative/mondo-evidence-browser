@@ -35,7 +35,7 @@ Free tiers have limits, all ample for curation:
 - Pages and Hugging Face have fair-use bandwidth.
 
 Below, `LOOKUP_URL` is where the build's lookup shards are:
-- data on Pages: `https://yaseminbridges.github.io/mondo-evidence-browser/data/lookup/`
+- data on Pages: `https://monarch-initiative.github.io/mondo-evidence-browser/data/lookup/`
 - data on Hugging Face (`HF_USER` is your username): `https://huggingface.co/datasets/HF_USER/mondo-evidence-data/resolve/main/current/lookup/`
 
 ## 1. The decisions repository
@@ -51,27 +51,34 @@ The sign-off service commits decisions as a GitHub App rather than as you: the a
 gets a bot identity, can write only where it is installed, and its tokens last an
 hour and renew themselves. It is free.
 
-1. GitHub → Settings → Developer settings → **GitHub Apps** → **New GitHub App**:
+The decisions repository belongs to the `monarch-initiative` organisation, so the app
+is created there, or created on your account and installed there; either way an
+organisation owner may have to approve it.
+
+1. The organisation's **Settings → Developer settings → GitHub Apps → New GitHub
+   App** (or the same under your own account's Settings):
    - GitHub App name: e.g. `mondo-evidence-signoff` (names are global; add a suffix if
      it is taken)
-   - Homepage URL: `https://yaseminbridges.github.io/mondo-evidence-browser/`
+   - Homepage URL: `https://monarch-initiative.github.io/mondo-evidence-browser/`
    - Webhook: untick **Active**
    - Repository permissions → **Contents: Read and write** (Metadata: read-only is
      added for you)
-   - Where can this GitHub App be installed: **Only on this account**
+   - Where can this GitHub App be installed: **Only on this account** if created in
+     the organisation, otherwise **Any account**
    - **Create GitHub App**.
 2. On the app's page, note the **App ID**, then **Generate a private key**. A `.pem`
    file downloads: keep it out of this repository.
-3. **Install App** → your account → **Only select repositories** →
-   `mondo-evidence-decisions` → Install.
+3. **Install App** → `monarch-initiative` → **Only select repositories** →
+   `mondo-evidence-decisions` → Install (or request it, for an owner to approve).
 
 You'll paste the App ID and the whole `.pem` file into Vercel in step 3.
 
 <details><summary>Or a personal token instead</summary>
 
 A fine-grained personal access token also works (Settings → Developer settings →
-Personal access tokens → Fine-grained tokens): only `mondo-evidence-decisions`,
-**Contents: Read and write**, expiring within a year. Set it as `MEB_GITHUB_TOKEN`
+Personal access tokens → Fine-grained tokens): resource owner `monarch-initiative`
+(the organisation must allow fine-grained tokens, and may have to approve this one),
+only `mondo-evidence-decisions`, **Contents: Read and write**, expiring within a year. Set it as `MEB_GITHUB_TOKEN`
 instead of the two app variables. Commits then appear as you, and the token has to
 be renewed by hand. If both are set, the app is used.
 
@@ -81,7 +88,7 @@ be renewed by hand. If both are set, the app is used.
 
 1. Sign up at <https://vercel.com/signup> with **Continue with GitHub**, and pick the
    **Hobby** plan. No card is asked for.
-2. **Add New → Project →** import `yaseminbridges/mondo-evidence-browser`. Vercel
+2. **Add New → Project →** import `monarch-initiative/mondo-evidence-browser`. Vercel
    reads [`vercel.json`](vercel.json): the framework preset is **FastAPI** and the
    entrypoint is `app.py`. Leave the build settings as they are.
 3. Before deploying, open **Environment Variables** and add:
@@ -91,10 +98,10 @@ be renewed by hand. If both are set, the app is used.
    | `ORCID_CLIENT_ID` | your ORCID client id (`APP-…`) |
    | `ORCID_BASE_URL` | `https://sandbox.orcid.org` (or `https://orcid.org`) |
    | `MEB_LOOKUP_URL` | `LOOKUP_URL` (above) |
-   | `MEB_DECISIONS_REPO` | `yaseminbridges/mondo-evidence-decisions` |
-   | `MEB_ALLOWED_ORIGINS` | `https://yaseminbridges.github.io` |
+   | `MEB_DECISIONS_REPO` | `monarch-initiative/mondo-evidence-decisions` |
+   | `MEB_ALLOWED_ORIGINS` | `https://monarch-initiative.github.io` |
    | `MEB_GITHUB_APP_ID` | the App ID from step 2 |
-| `MEB_GITHUB_APP_PRIVATE_KEY` | the whole `.pem` file from step 2, pasted as it is (tick **Sensitive**) |
+   | `MEB_GITHUB_APP_PRIVATE_KEY` | the whole `.pem` file from step 2, pasted as it is (tick **Sensitive**) |
 
 4. **Deploy.** The service's address is shown as the production domain, e.g.
    `https://mondo-evidence-browser.vercel.app`. Check it at `/api/health`: it reports
@@ -102,6 +109,12 @@ be renewed by hand. If both are set, the app is used.
 
 From then on Vercel redeploys on every push to `main`. A changed environment variable
 takes effect on the next deployment (Deployments → ⋯ → Redeploy).
+
+Importing a repository owned by an organisation needs Vercel's GitHub app installed on
+that organisation (an owner may have to approve it). On the free Hobby plan Vercel
+deploys public organisation repositories, but only commits authored by the Vercel
+account's owner trigger a deployment; others' commits need a redeploy by hand, a
+paid Vercel team, or a deploy from GitHub Actions.
 
 ## 4. Hugging Face (optional, for 600K+ records)
 
@@ -121,14 +134,14 @@ GitHub → this repository → Settings → Secrets and variables → **Actions*
 | Variable | `MEB_SERVICE_URL` | the Vercel address from step 3 |
 | Variable | `ORCID_CLIENT_ID` | your ORCID client id |
 | Variable | `ORCID_BASE_URL` | `https://sandbox.orcid.org` (or `https://orcid.org`) |
-| Variable | `MEB_DECISIONS_REPO` | `yaseminbridges/mondo-evidence-decisions` (already set) |
+| Variable | `MEB_DECISIONS_REPO` | `monarch-initiative/mondo-evidence-decisions` (already set) |
 | Variable | `MEB_DATA_REPO` | `HF_USER/mondo-evidence-data` (only with step 4) |
 | **Secret** | `HF_TOKEN` | the Hugging Face token (only with step 4) |
 
 ## 6. ORCID, curators, first build
 
 1. **ORCID:** in your ORCID client's Developer tools, add the redirect URI
-   `https://yaseminbridges.github.io/mondo-evidence-browser/auth.html`.
+   `https://monarch-initiative.github.io/mondo-evidence-browser/auth.html`.
 2. **Curators:** add each curator's ORCID iD to
    [`config/agents.yaml`](config/agents.yaml) with `can_sign_off: true`, and push. Vercel
    redeploys from `main`.

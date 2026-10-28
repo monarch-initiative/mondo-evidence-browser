@@ -20,10 +20,10 @@ ROOT = Path(__file__).parent.parent
 
 STATELESS = {
     "MEB_LOOKUP_URL": "https://data.example.org/current/lookup/",
-    "MEB_DECISIONS_REPO": "yaseminbridges/mondo-evidence-decisions",
+    "MEB_DECISIONS_REPO": "monarch-initiative/mondo-evidence-decisions",
     "MEB_GITHUB_TOKEN": "not-a-real-token",
     "ORCID_CLIENT_ID": "APP-TEST",
-    "MEB_ALLOWED_ORIGINS": "https://yaseminbridges.github.io",
+    "MEB_ALLOWED_ORIGINS": "https://monarch-initiative.github.io",
 }
 
 
@@ -60,12 +60,12 @@ def test_it_allows_the_pages_site_to_call_it(monkeypatch: pytest.MonkeyPatch) ->
     response = client.options(
         "/api/records/pkt_x/sign-off",
         headers={
-            "Origin": "https://yaseminbridges.github.io",
+            "Origin": "https://monarch-initiative.github.io",
             "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "Authorization",
         },
     )
-    assert response.headers["access-control-allow-origin"] == "https://yaseminbridges.github.io"
+    assert response.headers["access-control-allow-origin"] == "https://monarch-initiative.github.io"
 
 
 @pytest.mark.parametrize("missing", ["MEB_LOOKUP_URL", "MEB_DECISIONS_REPO"])
