@@ -46,9 +46,14 @@ jobs:
           python-version: "3.13"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-      - name: Unit tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Unit tests (the build tests need the vendored sql.js-httpvfs)
         run: |
           uv sync --group dev
+          npm ci
           uv run pytest -m "not browser" -q
 
   deploy:
