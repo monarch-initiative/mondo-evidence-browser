@@ -1,0 +1,91 @@
+# Deploy the sign-off service (app.py) to Vercel from GitHub Actions, so Vercel needs
+# no access to this repository or organisation, and anyone's commits to main deploy.
+# Runs when the service, its settings (config/, curators included) or its
+# dependencies change, after the unit tests pass; also on demand.
+#
+# Off until these are set (Settings > Secrets and variables > Actions; see DEPLOY.md):
+#   VERCEL_TOKEN       secret: a Vercel account token
+#   VERCEL_ORG_ID      variable: the Vercel account (team) id
+#   VERCEL_PROJECT_ID  variable: the Vercel project id
+# The service's own settings (ORCID, lookups, decisions repository, credentials) stay
+# in the Vercel project's environment variables.
+---
+name: Deploy the sign-off service
+
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches: [main]
+    paths:
+      - "app.py"
+      - "vercel.json"
+      - "src/mondo_evidence_browser/**"
+      - "config/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+      - ".github/workflows/service.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: service
+  cancel-in-progress: false
+
+jobs:
+  test:
+    if: ${{ vars.VERCEL_PROJECT_ID != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Unit tests
+        run: |
+          uv sync --group dev
+          uv run pytest -m "not browser" -q
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: sign-off-service
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Deploy to production (Vercel builds it, as from a Git push)
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN is not set; see DEPLOY.md"
+            exit 1
+          fi
+          url=$(npx --yes vercel@64.7.0 deploy --prod --yes --token "$VERCEL_TOKEN")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed $url"
+      - name: Check the service answers
+        run: |
+          base="${{ vars.MEB_SERVICE_URL }}"
+          if [ -z "$base" ]; then echo "MEB_SERVICE_URL not set; skipping"; exit 0; fi
+          for i in 1 2 3 4 5 6; do
+            if curl -sf "$base/api/health"; then exit 0; fi
+            sleep 10
+          done
+          echo "::error::$base/api/health did not answer ok"
+          exit 1

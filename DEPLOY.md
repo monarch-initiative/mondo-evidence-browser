@@ -114,7 +114,34 @@ Importing a repository owned by an organisation needs Vercel's GitHub app instal
 that organisation (an owner may have to approve it). On the free Hobby plan Vercel
 deploys public organisation repositories, but only commits authored by the Vercel
 account's owner trigger a deployment; others' commits need a redeploy by hand, a
-paid Vercel team, or a deploy from GitHub Actions.
+paid Vercel team, or a deploy from GitHub Actions:
+
+### Deploying from GitHub Actions instead
+
+[`service.yaml`](.github/workflows/service.yaml) deploys the service from this
+repository, so Vercel needs no access to the organisation, and everyone's commits
+deploy. It runs the unit tests, deploys, then checks `/api/health`, on every push to
+`main` that touches the service, its `config/` (the curator list too) or its
+dependencies, and on demand (Actions → *Deploy the sign-off service* → Run workflow).
+
+1. Vercel → your avatar → **Account Settings → Tokens** → create a token, e.g.
+   `github-actions` (no expiry, or renew it here when it expires).
+2. Note the **Team ID** (Vercel → Settings → General of your account or team) and
+   the **Project ID** (the project → Settings → General).
+3. This repository → Settings → Secrets and variables → **Actions**:
+
+   | Kind | Name | Value |
+   |---|---|---|
+   | **Secret** | `VERCEL_TOKEN` | the token from 1 |
+   | Variable | `VERCEL_ORG_ID` | the Team ID |
+   | Variable | `VERCEL_PROJECT_ID` | the Project ID |
+
+4. The Vercel project → Settings → Git → **Disconnect**, so pushes don't deploy twice.
+5. Actions → *Deploy the sign-off service* → **Run workflow** once.
+
+The service's own settings (ORCID, lookups, decisions repository, credentials) stay in
+the Vercel project's environment variables. Without `VERCEL_PROJECT_ID` the workflow
+does nothing.
 
 ## 4. Hugging Face (optional, for 600K+ records)
 

@@ -1,0 +1,9 @@
+# Not uploaded by `vercel deploy` (the service needs only app.py, src/, config/
+# and the project files).
+node_modules
+.venv
+site
+var
+data
+tests
+docs
