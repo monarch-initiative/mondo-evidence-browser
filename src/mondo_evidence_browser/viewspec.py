@@ -36,6 +36,10 @@ SLOT_ANNOTATIONS = {
     "browser_layout",
     "browser_widget",
     "browser_status",
+    "browser_section",
+    "browser_collapsed",
+    "browser_role",
+    "browser_labels",
 }
 CLASS_ANNOTATIONS = {
     "browser_root",
@@ -43,6 +47,8 @@ CLASS_ANNOTATIONS = {
     "browser_history",
     "browser_explain",
     "browser_title",
+    "browser_overlay",
+    "browser_renderer",
 }
 
 NUMBER_TYPES = {"float", "double", "decimal"}
@@ -118,7 +124,24 @@ class _Builder:
             "required": bool(slot.required),
             "layout": ann.get("browser_layout"),
             "format": ann.get("browser_format"),
+            "section": ann.get("browser_section"),
+            "collapsed": ann.get("browser_collapsed"),
+            "role": ann.get("browser_role"),
+            "labels": ann.get("browser_labels"),
         }
+
+    def roles(self, cls: str, path: list[str], seen: tuple[str, ...]) -> dict[str, list[str]]:
+        """Record-level roles (browser_role) reachable through single-valued class slots."""
+        out: dict[str, list[str]] = {}
+        for slot in self.sv.class_induced_slots(cls):
+            ann = _annotations(slot, SLOT_ANNOTATIONS)
+            here = [*path, slot.name]
+            if "browser_role" in ann:
+                out.setdefault(ann["browser_role"], here)
+            if self.kind(slot) == "class" and not slot.multivalued and slot.range not in seen:
+                for role, where in self.roles(slot.range, here, (*seen, slot.range)).items():
+                    out.setdefault(role, where)
+        return out
 
     def class_entry(self, name: str) -> dict[str, Any]:
         cls = self.sv.get_class(name)
@@ -127,6 +150,7 @@ class _Builder:
             "name": name,
             "title": cls.title or name,
             "title_template": ann.get("browser_title"),
+            "renderer": ann.get("browser_renderer"),
             "description": cls.description,
             "ancestors": list(self.sv.class_ancestors(name))[1:],
             "slots": [self.slot_entry(s) for s in self.sv.class_induced_slots(name)],
@@ -194,6 +218,7 @@ class _Builder:
             "enum": enum,
             "multivalued": bool(slot.multivalued),
             "format": ann.get("browser_format"),
+            "labels": ann.get("browser_labels"),
             "sortable": bool(ann.get("browser_sortable", False)),
             "search": bool(ann.get("browser_search", False)),
             "filter": bool(ann.get("browser_filter", False)),
@@ -318,6 +343,21 @@ def build_view_spec(schema_path: Path = SCHEMA_PATH) -> dict[str, Any]:
             )
         form = {"class": form_class, "fields": fields}
 
+    # Overlays: browser subclasses that add display hints to imported classes; the
+    # front end shows any instance of the parent as the overlay.
+    overlays: dict[str, str] = {}
+    for name in sv.all_classes():
+        cls = sv.get_class(name)
+        if _annotations(cls, CLASS_ANNOTATIONS).get("browser_overlay"):
+            if not cls.is_a:
+                raise SpecError(f"overlay class {name} needs is_a: the class it shows")
+            if cls.is_a in overlays:
+                raise SpecError(
+                    f"{cls.is_a} has two overlay classes, {overlays[cls.is_a]} and {name}"
+                )
+            overlays[cls.is_a] = name
+    roles = builder.roles(root, [], (root,))
+
     tab = tabs[0] if tabs else None
     return {
         "schema": {
@@ -338,5 +378,8 @@ def build_view_spec(schema_path: Path = SCHEMA_PATH) -> dict[str, Any]:
         "form": form,
         "history": history_class,
         "status": statuses[0] if statuses else None,
+        "overlays": overlays,
+        "roles": roles,
+        "lede": roles.get("lede"),
         "explain": explain_class,
     }

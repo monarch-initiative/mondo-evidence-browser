@@ -119,27 +119,68 @@ def test_clicking_a_row_opens_the_record_at_its_stable_url(page: Page, site: Sit
     _open_list(page, site)
     page.locator(f"tr[data-key='{PACKET}'] td[data-column=claim_type]").click()
     expect(page).to_have_url(f"{site.url}/record.html?id={PACKET}")
-    expect(page.locator("h1")).to_have_text("arginase deficiency exact synonym Arginase deficiency")
+    expect(page.locator("h1")).to_have_text(
+        "arginase deficiency (MONDO:0008814) has exact synonym “Arginase deficiency”"
+    )
 
 
-def test_record_page_shows_the_score_components(page: Page, site: Site) -> None:
+def test_record_page_reads_as_an_account_of_the_evidence(page: Page, site: Site) -> None:
+    """Statement as a sentence, a plain verdict, then one card per piece of evidence."""
     page.goto(f"{site.url}/record.html?id={PACKET}")
-    components = page.locator("table.detail-table[data-class=ScoreComponent]")
-    expect(components).to_be_visible()
-    headers = components.locator("thead th").all_text_contents()
-    assert {
-        "Direction (d)",
-        "Strength (s)",
-        "Source prior (q)",
-        "Confidence (c)",
-        "Weight (w)",
-    } <= set(headers)
-    expect(components.locator("tbody tr")).to_have_count(2)
-    expect(page.locator("dd[data-column=inclusion_score__value]")).to_contain_text("+0.993")
-    expect(page.get_by_role("link", name="DOID:9278")).to_have_attribute(
+    heading = page.locator("h1")
+    expect(heading.get_by_role("link", name="MONDO:0008814")).to_have_attribute(
+        "href", "https://bioregistry.io/MONDO:0008814"
+    )
+    expect(page.locator(".lede")).to_have_text(
+        "Supported by 2 independent sources (Disease Ontology and Orphanet (ORDO)). "
+        "Score 0.99, strong support. Rule not yet calibrated."
+    )
+    facts = page.locator("dl.summary")
+    expect(facts.locator("[data-column=claim_type]")).to_have_text("Synonym")
+    expect(facts.locator("[data-column=sources]")).to_contain_text("Disease Ontology")
+    cards = page.locator("#record .evidence .mapping")
+    expect(cards).to_have_count(2)
+    doid = cards.filter(has_text="Disease Ontology")
+    expect(doid).to_contain_text("arginase deficiency")  # the Mondo side
+    expect(doid.get_by_role("link", name="DOID:9278")).to_have_attribute(
         "href", "https://bioregistry.io/DOID:9278"
     )
-    expect(page.locator("dl.object[data-class=ConcordanceItem]")).to_have_count(2)
+    expect(doid).to_contain_text("hyperargininemia")  # the source's own label
+    expect(doid).to_contain_text("mondo.sssom.tsv")  # where the mapping comes from
+
+
+def test_technical_fields_stay_out_of_the_main_view(page: Page, site: Site) -> None:
+    page.goto(f"{site.url}/record.html?id={PACKET}")
+    expect(page.locator("#record .evidence .mapping")).to_have_count(2)
+    record = site.index.get(PACKET)
+    assert record is not None
+    # What shows without opening anything: the record minus its folded <details>.
+    text = page.evaluate(
+        """() => { const copy = document.querySelector('#record').cloneNode(true);
+        copy.querySelectorAll('details').forEach(d => d.remove());
+        document.body.append(copy); const t = copy.innerText; copy.remove(); return t; }"""
+    )
+    for hidden in (record["record_version"], "SieveEvidenceLine", "ConcordanceItem", "el_", "ev_"):
+        assert hidden not in text, hidden
+    assert "Status in source" not in text
+    # Still there for anyone who needs it, collapsed.
+    expect(page.locator("#record details", has_text="Record details")).to_contain_text(
+        record["record_version"]
+    )
+
+
+def test_the_score_maths_is_a_collapsed_table(page: Page, site: Site) -> None:
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.goto(f"{site.url}/record.html?id={PACKET}")
+    maths = page.locator("#record details", has_text="How the score was computed")
+    expect(maths).not_to_have_attribute("open", "")
+    maths.locator("summary").click()
+    components = maths.locator("table.detail-table[data-class=ScoreComponent]")
+    expect(components).to_be_visible()
+    headers = components.locator("thead th").all_text_contents()
+    assert {"Direction (d)", "Strength (s)", "Source prior (q)", "Confidence (c)"} <= set(headers)
+    expect(components.locator("tbody tr")).to_have_count(2)
+    expect(maths.locator(".detail-wrap.stacked")).to_have_count(0)  # a real table
 
 
 def test_unknown_record(page: Page, site: Site) -> None:
@@ -240,7 +281,7 @@ def test_rows_expand_to_preview_the_record(page: Page, site: Site) -> None:
         expect(preview.locator(f"[data-preview={item['name']}]")).to_contain_text(item["title"])
     components = preview.locator("table.detail-table[data-class=ScoreComponent] tbody tr")
     expect(components).to_have_count(2)
-    expect(preview.locator("dl.object[data-class=ConcordanceItem]")).to_have_count(2)
+    expect(preview.locator("article.mapping")).to_have_count(2)  # same cards as the record page
     expect(preview.get_by_role("link", name="Open the full record")).to_have_attribute(
         "href", f"{site.url}/record.html?id={PACKET}"
     )
@@ -295,7 +336,9 @@ def test_data_served_from_another_host(page: Page, external_data_site: Site) -> 
     page.on("request", lambda request: requests.append(request.url))
     _open_list(page, site)
     page.goto(f"{site.url}/record.html?id={PACKET}")
-    expect(page.locator("h1")).to_have_text("arginase deficiency exact synonym Arginase deficiency")
+    expect(page.locator("h1")).to_have_text(
+        "arginase deficiency (MONDO:0008814) has exact synonym “Arginase deficiency”"
+    )
     data_requests = [url for url in requests if "/evidence." in url]
     assert any(url.endswith("evidence.sqlite.png") for url in data_requests), data_requests
     assert data_requests

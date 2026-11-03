@@ -275,10 +275,10 @@ async function fetchPage(db, spec, state, meta) {
 function cell(spec, column, value) {
   if (column.multivalued) {
     const values = value ? JSON.parse(value) : [];
-    return renderList(spec, column.kind, values, { format: column.format, enumName: column.enum });
+    return renderList(spec, column.kind, values, { format: column.format, enumName: column.enum, labels: column.labels });
   }
   if (column.kind === "boolean" && value !== null) value = Boolean(value);
-  return renderScalar(spec, column.kind, value, { format: column.format, enumName: column.enum });
+  return renderScalar(spec, column.kind, value, { format: column.format, enumName: column.enum, labels: column.labels });
 }
 
 function renderTabs(container, spec, state, meta, go) {

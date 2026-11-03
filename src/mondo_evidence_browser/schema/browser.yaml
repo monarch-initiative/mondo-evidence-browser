@@ -14,16 +14,31 @@
 #   browser_filter: true          offered as a filter
 #   browser_field: <slot>         for a class-valued column: which slot of it to show
 #   browser_format: score|curie|badge|list   how to render a value
-#   browser_layout: table|hidden  how the detail view lays out a slot
+#   browser_layout: table|hidden  how the detail view lays out a slot (hidden: technical,
+#                                 left to the raw record)
 #   browser_widget: radio|textarea|text      sign-off form widget
 #   browser_status: true          the review status column, updated live from sign-offs
+#   browser_section: "<title>"    a record slot shown as its own panel with that title
+#   browser_collapsed: "<title>"  a record slot folded under that title (slots sharing a
+#                                 title share one fold)
+#   browser_role: <role>          what a slot means to a renderer or the page: lede (the
+#                                 line under the heading), term / term_label (the record's
+#                                 Mondo term), source_name, source_id, source_term,
+#                                 source_term_label, via, mapping_predicate, confidence,
+#                                 source_assertion, direction, strength, items
+#   browser_labels: resources     values are resource ids, shown by their registry names
 #
 # Class annotations:
 #   browser_root: true            the class whose instances are the records
 #   browser_form: true            the class whose slots make the sign-off form
 #   browser_history: true         the class of recorded sign-offs, shown as history
 #   browser_explain: true         the class explained on the list page (with its slots)
-#   browser_title: "{path} ..."   template for a record's heading
+#   browser_title: "{path} ..."   template for a record's (or history entry's) heading;
+#                                 identifier placeholders become links
+#   browser_overlay: true         a subclass that adds display hints to an imported class:
+#                                 instances of the parent are shown as this class
+#   browser_renderer: mapping|line  draw instances with that renderer (anything else, or
+#                                 none, gets the generic view)
 #
 # A schema change means regenerating (`just build`), never editing UI code.
 
@@ -58,20 +73,39 @@ classes:
     tree_root: true
     annotations:
       browser_root: true
-      browser_title: "{statement.subject_label} {statement.predicate.label} {statement.object_label}"
+      browser_title: "{statement.subject_label} ({statement.subject}) has {statement.predicate.label} “{statement.object_label}”"
     slot_usage:
       id:
         title: Record ID
         annotations:
           browser_key: true
+          browser_collapsed: Record details
       statement:
         range: BrowserStatement
+        annotations:
+          browser_layout: hidden  # it is the heading
       status:
-        title: Status in source
+        title: Status in the evidence packet
+        description: The packet's own curation status, set by mondo-ai, not the browser's review status.
+        annotations:
+          browser_collapsed: Record details
       has_evidence_lines:
         title: Evidence lines
         annotations:
           browser_preview: 2
+          browser_section: Evidence
+      evidence_synthesis:
+        annotations:
+          browser_collapsed: Record details
+      curated_by:
+        annotations:
+          browser_collapsed: Record details
+      created:
+        annotations:
+          browser_collapsed: Record details
+      updated:
+        annotations:
+          browser_collapsed: Record details
     attributes:
       mondo_membership:
         title: In Mondo?
@@ -83,8 +117,11 @@ classes:
       mondo_release:
         title: Mondo release
         description: The Mondo release the membership was determined against.
+        annotations:
+          browser_collapsed: Record details
       claim_type:
         title: Claim type
+        range: ClaimType
         description: Mondo claim type (requirements CT form, D-039).
         annotations:
           browser_column: 5
@@ -97,11 +134,14 @@ classes:
         annotations:
           browser_column: 6
           browser_format: list
+          browser_labels: resources
       inclusion_score:
         title: Inclusion score
         range: InclusionScore
         inlined: true
         required: true
+        annotations:
+          browser_collapsed: How the score was computed
       review_status:
         title: Review status
         range: ReviewStatus
@@ -119,6 +159,8 @@ classes:
         description: >-
           Content hash of the packet, ignoring created/updated. A sign-off applies to
           one version (D-051).
+        annotations:
+          browser_collapsed: Record details
 
   BrowserStatement:
     is_a: SieveStatement
@@ -127,6 +169,7 @@ classes:
       subject:
         title: Mondo term
         annotations:
+          browser_role: term
           browser_column: 1
           browser_sortable: true
           browser_search: true
@@ -134,6 +177,7 @@ classes:
       subject_label:
         title: Term label
         annotations:
+          browser_role: term_label
           browser_column: 2
           browser_sortable: true
           browser_search: true
@@ -163,6 +207,14 @@ classes:
     annotations:
       browser_explain: true
     attributes:
+      summary:
+        title: Verdict
+        description: >-
+          What the evidence amounts to in a line: independent sources for and against,
+          by name, the score and its band, and whether the rule is calibrated yet.
+        annotations:
+          browser_role: lede
+          browser_layout: hidden  # shown under the heading, not again in the maths
       value:
         title: Score
         range: float
@@ -230,6 +282,8 @@ classes:
       source:
         title: Source
         description: The resource or agent the evidence comes from.
+        annotations:
+          browser_labels: resources
       direction:
         title: Direction (d)
         range: integer
@@ -263,6 +317,8 @@ classes:
         description: d × s × q × c, after any cap. This is what the line adds to Σw.
       cluster:
         title: Independence cluster
+        annotations:
+          browser_labels: resources
         description: >-
           Lines from sources that derive from each other share a cluster; only the
           strongest line of a cluster counts (D-046).
@@ -393,7 +449,106 @@ classes:
         title: Trust as of
         range: date
 
+  EvidenceLineView:
+    is_a: SieveEvidenceLine
+    description: How the browser shows an evidence line (mondo-ai's class, unedited).
+    annotations:
+      browser_overlay: true
+      browser_renderer: line
+    slot_usage:
+      id:
+        annotations:
+          browser_layout: hidden
+      type:
+        annotations:
+          browser_layout: hidden
+      direction_of_evidence_provided:
+        title: Direction
+        annotations:
+          browser_role: direction
+      strength_of_evidence_provided:
+        title: Strength
+        annotations:
+          browser_role: strength
+      score_of_evidence_provided:
+        title: Score in the evidence packet
+        annotations:
+          browser_layout: hidden  # not the inclusion score; see the score maths
+      has_evidence_items:
+        title: Evidence
+        annotations:
+          browser_role: items
+
+  ConcordanceItemView:
+    is_a: ConcordanceItem
+    description: >-
+      How the browser shows concordance evidence: the Mondo term and the source's
+      term side by side, with where the mapping comes from.
+    annotations:
+      browser_overlay: true
+      browser_renderer: mapping
+    slot_usage:
+      id:
+        annotations:
+          browser_layout: hidden
+      type:
+        annotations:
+          browser_layout: hidden
+      evidence_item_type:
+        annotations:
+          browser_layout: hidden
+      description:
+        annotations:
+          browser_layout: hidden
+      source_name:
+        title: Source
+        annotations:
+          browser_role: source_name
+      source_id:
+        annotations:
+          browser_role: source_id
+      source_subject:
+        title: Source term
+        annotations:
+          browser_role: source_term
+      source_subject_label:
+        title: Label in the source
+        annotations:
+          browser_role: source_term_label
+      mapping_justification:
+        title: Mapping from
+        annotations:
+          browser_role: via
+
 enums:
+
+  ClaimType:
+    description: Mondo claim types (requirements CT form, D-039).
+    permissible_values:
+      C001:
+        title: Term existence
+        description: Term existence or obsoletion (C001).
+      C002:
+        title: Definition
+        description: Definition (C002).
+      C003:
+        title: Synonym
+        description: Synonym, any scope (C003).
+      C004:
+        title: Subclass placement
+        description: Subclass placement (C004).
+      C005:
+        title: Negative subclass
+        description: Negative subclass (C005).
+      C006:
+        title: Mapping
+        description: Mapping to another resource (C006).
+      C007:
+        title: Disease attribute
+        description: Disease attribute (C007).
+      C008:
+        title: Subset membership
+        description: Subset membership (C008).
 
   MondoMembership:
     description: Whether a statement is already asserted in Mondo.
