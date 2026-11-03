@@ -5,6 +5,7 @@
 
 import { currentUser, login, renderWho } from "./auth.js";
 import { getRecord, loadSite, openDb, readMeta } from "./db.js";
+import { decisions, signOff } from "./service.js";
 import {
   el,
   fillHeading,
@@ -85,18 +86,6 @@ function layout(spec, record, covered, ctx) {
     ? el("section", { class: "panel detail" }, el("h2", {}, "Details"), renderObject(spec, spec.root, record, 0, { only: rest, ctx }))
     : null;
   return { sections, details, folded };
-}
-
-async function service(config, path, options = {}) {
-  let response;
-  try {
-    // The sign-off service is another system: say so plainly when it cannot be reached.
-    response = await fetch(`${config.service.url}${path}`, options);
-  } catch (error) {
-    return { ok: false, status: 0, body: { detail: `The sign-off service could not be reached (${error.message}).` } };
-  }
-  const body = await response.json().catch(() => ({}));
-  return { ok: response.ok, status: response.status, body };
 }
 
 // Each decision, newest first: a heading from the history class's title template, the
@@ -210,16 +199,7 @@ function renderSignOff(container, spec, config, record, live, loadHistory) {
       const value = data.get(field.name);
       if (value) values[field.name] = String(value);
     }
-    const result = await service(config, `/api/records/${encodeURIComponent(record[spec.key])}/sign-off`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-      body: JSON.stringify({
-        seen_version: record.record_version,
-        seen_rule_version: score.rule_version ?? null,
-        seen_decision: live.seen,
-        values,
-      }),
-    });
+    const result = await signOff(config, user, record[spec.key], { record, seenDecision: live.seen, values });
     if (!result.ok) {
       message.textContent = result.body.detail || `Sign-off failed (HTTP ${result.status}).`;
       message.className = "form-message error";
@@ -275,7 +255,7 @@ async function main() {
     );
     const live = { seen: null };
     async function loadHistory() {
-      const result = await service(config, `/api/records/${encodeURIComponent(record[spec.key])}/decisions`);
+      const result = await decisions(config, record[spec.key]);
       if (!result.ok) {
         history.replaceChildren(
           el("h2", {}, "History"),
@@ -283,9 +263,9 @@ async function main() {
         );
         return;
       }
-      const decisions = result.body.decisions;
-      live.seen = decisions.length ? decisions[decisions.length - 1].decision_id : null;
-      renderHistory(history, spec, decisions);
+      const list = result.body.decisions;
+      live.seen = list.length ? list[list.length - 1].decision_id : null;
+      renderHistory(history, spec, list);
       // The status in this build may predate recent sign-offs; show the live one.
       const column = spec.columns.find((c) => c.name === spec.status);
       const cell = article.querySelector(`dd[data-column="${spec.status}"]`);

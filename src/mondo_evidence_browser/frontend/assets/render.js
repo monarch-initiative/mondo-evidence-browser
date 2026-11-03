@@ -340,7 +340,7 @@ export function renderObject(spec, className, obj, depth = 0, { skip = [], only 
 
 // Fill a "{a.b} ... {c}" template from a record.
 // "2026-10-21T18:49:55+00:00" reads as "21 Oct 2026, 18:49 UTC" in headings.
-function readableTime(value) {
+export function readableTime(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) return value;
   const time = new Date(value);
   if (Number.isNaN(time.getTime())) return value;

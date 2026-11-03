@@ -258,6 +258,9 @@ td[data-live] .badge { box-shadow: 0 0 0 2px var(--accent-soft); }
 .records .meter { flex-wrap: wrap; gap: 4px 8px; }
 .records .meter-track { width: 44px; }
 .records .chip { white-space: normal; }
+/* Very long words (chemical names such as "phosphoribosylaminoimidazole") get break
+   points from list.js, so they can't force the table wider than the page. No
+   automatic hyphenation: it splits ordinary words too. */
 @media (max-width: 1100px) {
   .records th, .records td { padding: 9px 7px; }
   .records td { font-size: 0.88rem; }
@@ -497,4 +500,29 @@ details.more dl.object { font-size: 0.85rem; }
   .tab { flex: 1; }
   .filters .control { flex: 1 1 100%; }
   .filters select { max-width: none; }
+}
+
+/* ---- quick sign-off in the table ---- */
+/* The buttons stack when the table is tight, so the column never forces a scroll. */
+.quick-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.quick-btn {
+  font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line-strong);
+  background: var(--panel); color: var(--ink-2); transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.quick-btn:hover { border-color: var(--accent); color: var(--accent); }
+.quick-btn.quick-accepted:hover { background: var(--pos-soft); border-color: var(--pos); color: var(--pos); }
+.quick-btn.quick-rejected:hover { background: var(--neg-soft); border-color: var(--neg); color: var(--neg); }
+.quick-more { padding: 0 6px; color: var(--muted); font-weight: 700; border-radius: 6px; }
+.quick-more:hover { color: var(--accent); text-decoration: none; background: var(--chip); }
+.records tr.quick > td { background: var(--accent-soft); padding: 14px 16px; }
+.records tr.quick:hover > td { background: var(--accent-soft); }
+.quick-title { margin: 0 0 4px; }
+.quick-latest { margin: 0 0 10px; font-size: 0.88rem; }
+.quick-field { display: grid; gap: 4px; max-width: 640px; margin-bottom: 10px; font-size: 0.85rem; font-weight: 600; color: var(--ink-2); }
+.quick-field textarea { min-height: 60px; }
+.quick-buttons { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+@media (max-width: 900px) {
+  .records tr.quick > td { display: block; }
+  .records tr.quick > td::before { content: none; }
 }

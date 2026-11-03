@@ -250,3 +250,20 @@ def test_one_overlay_per_class(tmp_path: Path) -> None:
     )
     with pytest.raises(SpecError, match="SieveEvidenceLine"):
         build_view_spec(path)
+
+
+def test_quick_sign_off_outcomes_come_from_the_schema(spec: dict[str, Any]) -> None:
+    """Which outcomes get one-click buttons in the table (browser_quick on the form field)."""
+    outcome = next(f for f in spec["form"]["fields"] if f["name"] == "outcome")
+    assert outcome["quick"] == ["accepted", "rejected"]
+
+
+def test_quick_outcomes_must_be_options_of_the_field(tmp_path: Path) -> None:
+    path = _edit(
+        _schema_copy(tmp_path),
+        lambda d: d["classes"]["SignOff"]["attributes"]["outcome"]["annotations"].update(
+            {"browser_quick": "accepted approved"}
+        ),
+    )
+    with pytest.raises(SpecError, match="approved"):
+        build_view_spec(path)

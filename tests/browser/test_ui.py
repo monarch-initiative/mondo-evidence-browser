@@ -577,3 +577,86 @@ def test_a_filter_with_no_matches_still_shows_what_was_chosen(page: Page, site: 
     expect(select).to_have_value("controversial")
     expect(select.locator("option:checked")).to_contain_text("(0)")
     expect(page.locator("#count")).to_contain_text("of 0 records")
+
+
+def _logged_in(page: Page) -> None:
+    page.add_init_script(f"sessionStorage.setItem('meb.id_token', {json.dumps(id_token())})")
+
+
+def test_quick_sign_off_buttons_only_for_logged_in_curators(page: Page, site: Site) -> None:
+    _open_list(page, site)
+    expect(page.locator("table.records th.actions-col")).to_have_count(0)
+    _logged_in(page)
+    _open_list(page, site)
+    row = page.locator(f"tr[data-key='{PACKET}']")
+    expect(row.get_by_role("button", name="Accept")).to_be_visible()
+    expect(row.get_by_role("button", name="Reject")).to_be_visible()
+    expect(row.get_by_role("link", name="More sign-off options")).to_have_attribute(
+        "href", f"{site.url}/record.html?id={PACKET}#signoff"
+    )
+
+
+def test_quick_sign_off_from_the_table(page: Page, site: Site) -> None:
+    """Accept a record from the list: confirm, add a reason, and the row updates."""
+    import httpx
+
+    key = _unreviewed_key(page, site, skip={PACKET})
+    _logged_in(page)
+    _open_list(page, site)
+    row = page.locator(f"tr[data-key='{key}']")
+    row.get_by_role("button", name="Accept").click()
+    confirm = page.locator(f"tr.quick[data-key='{key}']")
+    expect(confirm).to_contain_text("Accept")
+    expect(row.locator("td[data-column=review_status]")).to_contain_text("Unreviewed")  # not yet
+    confirm.get_by_label("Rationale").fill("Listed in both sources.")
+    confirm.get_by_role("button", name="Confirm").click()
+    expect(confirm).to_have_count(0)
+    status = row.locator("td[data-column=review_status]")
+    expect(status).to_contain_text("Accepted")
+    expect(status).to_have_attribute("data-live", "true")
+    history = httpx.get(f"{site.url}/api/records/{key}/decisions").json()["decisions"]
+    assert [(d["outcome"], d.get("rationale")) for d in history] == [
+        ("accepted", "Listed in both sources.")
+    ]
+
+
+def test_quick_sign_off_can_be_cancelled(page: Page, site: Site) -> None:
+    import httpx
+
+    key = _unreviewed_key(page, site, skip={PACKET})
+    _logged_in(page)
+    _open_list(page, site)
+    row = page.locator(f"tr[data-key='{key}']")
+    row.get_by_role("button", name="Reject").click()
+    page.locator(f"tr.quick[data-key='{key}']").get_by_role("button", name="Cancel").click()
+    expect(page.locator(f"tr.quick[data-key='{key}']")).to_have_count(0)
+    assert httpx.get(f"{site.url}/api/records/{key}/decisions").json()["decisions"] == []
+
+
+def test_quick_sign_off_shows_a_decision_made_meanwhile(page: Page, site: Site) -> None:
+    """Like the full form: another curator's decision is shown before yours is added."""
+    key = _unreviewed_key(page, site, skip={PACKET})
+    _logged_in(page)
+    _open_list(page, site)
+    row = page.locator(f"tr[data-key='{key}']")
+    row.get_by_role("button", name="Reject").click()
+    confirm = page.locator(f"tr.quick[data-key='{key}']")
+    expect(confirm.get_by_role("button", name="Confirm")).to_be_enabled()
+    _sign_via_api(site, key, "deferred")  # another curator, while the strip is open
+    confirm.get_by_role("button", name="Confirm").click()
+    expect(confirm).to_contain_text("deferred this record")
+    expect(row.locator("td[data-column=review_status]")).to_contain_text("Deferred")
+    confirm.get_by_role("button", name="Confirm").click()  # knowingly, on top
+    expect(confirm).to_have_count(0)
+    expect(row.locator("td[data-column=review_status]")).to_contain_text("Rejected")
+
+
+def test_the_strip_says_what_was_decided_before(page: Page, site: Site) -> None:
+    key = _unreviewed_key(page, site, skip={PACKET})
+    _sign_via_api(site, key, "deferred")
+    _logged_in(page)
+    _open_list(page, site)
+    page.locator(f"tr[data-key='{key}']").get_by_role("button", name="Accept").click()
+    expect(page.locator(f"tr.quick[data-key='{key}']")).to_contain_text(
+        "Latest: Defer by Josiah Carberry"
+    )

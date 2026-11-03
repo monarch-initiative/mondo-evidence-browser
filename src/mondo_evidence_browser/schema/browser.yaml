@@ -27,6 +27,8 @@
 #                                 source_term_label, via, mapping_predicate, confidence,
 #                                 source_assertion, direction, strength, items
 #   browser_labels: resources     values are resource ids, shown by their registry names
+#   browser_quick: "<v> <v>"      on a sign-off form field: these options get one-click
+#                                 buttons in the table (others are on the record page)
 #
 # Class annotations:
 #   browser_root: true            the class whose instances are the records
@@ -348,6 +350,7 @@ classes:
         required: true
         annotations:
           browser_widget: radio
+          browser_quick: accepted rejected
       rationale:
         title: Rationale
         description: Optional, one or two sentences (D-051).
