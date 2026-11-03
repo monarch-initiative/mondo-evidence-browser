@@ -407,6 +407,18 @@ export function fillHeading(spec, template, record) {
   return parts;
 }
 
+// A record's heading: the title template when every value it names is there (its
+// identifiers as links), else the record's own sentence (browser_role: statement_text),
+// else its id.
+export function recordHeading(spec, record) {
+  const paths = templatePaths(spec.title_template);
+  if (paths.length && paths.every((p) => !isEmpty(getPath(record, p.split("."))))) {
+    return fillHeading(spec, spec.title_template, record);
+  }
+  const text = spec.roles?.statement_text ? getPath(record, spec.roles.statement_text) : null;
+  return [isEmpty(text) ? String(record[spec.key]) : String(text)];
+}
+
 // What an expanded table row shows: the spec's preview slots, then a link onwards.
 export function renderPreview(spec, record, href) {
   const items = spec.preview || [];

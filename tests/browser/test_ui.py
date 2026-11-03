@@ -827,3 +827,29 @@ def test_the_map_groups_dependent_sources_and_shows_disputes(page: Page, site: S
     expect(graph.locator("figcaption")).to_have_text(
         "1 independent source supports this statement; 1 disputes it."
     )
+
+
+HEADING = """async (record) => {
+  const base = document.querySelector('script[type=module]').src.replace(/[^/]+$/, '');
+  const m = await import(base + 'render.js');
+  const spec = await (await fetch('view-spec.json')).json();
+  const h = document.createElement('h1');
+  h.append(...m.recordHeading(spec, record));
+  return { text: h.textContent, links: h.querySelectorAll('a').length };
+}"""
+
+
+def test_the_heading_falls_back_to_the_statement_text(page: Page, site: Site) -> None:
+    """The template (with the Mondo id as a link) when it can be filled, else the
+    packet's own sentence, else the record id."""
+    record = site.index.get(PACKET)
+    assert record is not None
+    page.goto(f"{site.url}/record.html?id={PACKET}")
+    expect(page.locator("h1")).to_be_visible()
+    full = page.evaluate(HEADING, record)
+    assert full["links"] == 1 and full["text"].startswith("arginase deficiency (MONDO:0008814)")
+    unlabelled = {**record, "statement": {**record["statement"], "subject_label": None}}
+    unlabelled["statement"]["statement_text"] = "arginase deficiency has exact synonym 'X'"
+    assert page.evaluate(HEADING, unlabelled)["text"] == "arginase deficiency has exact synonym 'X'"
+    bare = {**unlabelled, "statement": {**unlabelled["statement"], "statement_text": None}}
+    assert page.evaluate(HEADING, bare)["text"] == PACKET
