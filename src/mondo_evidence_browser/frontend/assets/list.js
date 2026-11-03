@@ -285,9 +285,9 @@ function breakable(node) {
       out.append(part);
       continue;
     }
-    for (let i = 0; i < part.length; i += 12) {
+    for (let i = 0; i < part.length; i += 8) {
       if (i) out.append(document.createElement("wbr"));
-      out.append(part.slice(i, i + 12));
+      out.append(part.slice(i, i + 8));
     }
   }
   return out;
