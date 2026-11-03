@@ -151,3 +151,38 @@ def test_record_details_never_squeeze_values(page: Page, site: Site, width: int,
     m = page.evaluate(SQUEEZED)
     assert m["pageWidth"] <= m["vw"], m
     assert m["squeezed"] == [], m
+
+
+@pytest.mark.parametrize("width", [1440, 1280, 1024, 800, 375])
+def test_quick_sign_off_column_fits_too(page: Page, site: Site, width: int, font: str) -> None:
+    """Logged in, each row gets sign-off buttons; every column must still fit."""
+    import json
+
+    from tests.orcid import id_token
+
+    page.add_init_script(f"sessionStorage.setItem('meb.id_token', {json.dumps(id_token())})")
+    m = _open(page, site, width, "?tab=CANDIDATE", font)
+    expect(page.locator("table.records th.actions-col")).to_have_count(1)
+    assert m["pageWidth"] <= m["vw"], m
+    assert m["cellsOutside"] == 0, m
+    assert m["spilling"] == [], m
+    if width >= 1024:
+        assert m["headersOutside"] == [], m
+
+
+@pytest.mark.parametrize("logged_in", [False, True])
+@pytest.mark.parametrize("width", [1440, 1280, 1024])
+def test_a_very_long_word_cannot_widen_the_table(
+    page: Page, long_word_site: Site, width: int, font: str, logged_in: bool
+) -> None:
+    """Real labels include 28-letter chemical names; they must wrap, not overflow."""
+    if logged_in:
+        import json
+
+        from tests.orcid import id_token
+
+        page.add_init_script(f"sessionStorage.setItem('meb.id_token', {json.dumps(id_token())})")
+    m = _open(page, long_word_site, width, "", font)
+    assert m["pageWidth"] <= m["vw"], m
+    assert m["tableRight"] <= m["vw"] + 1, m
+    assert m["cellsOutside"] == 0, m

@@ -1,9 +1,10 @@
 // The record list: tabs, filters, search and a lazily paged, sortable table, all
 // derived from the view spec. State lives in the URL so every view can be linked.
 
-import { renderWho } from "./auth.js";
+import { currentUser, renderWho } from "./auth.js";
 import { getRecord, ident, loadJSON, loadSite, openDb, readMeta, siteUrl } from "./db.js";
-import { el, enumEntry, renderExplainer, renderList, renderPreview, renderScalar } from "./render.js";
+import { el, enumEntry, readableTime, renderExplainer, renderList, renderPreview, renderScalar, slotTitle } from "./render.js";
+import { decisions, signOff } from "./service.js";
 
 const PAGE_SIZE = 50;
 const LIVE_TTL_MS = 30_000;
@@ -272,13 +273,33 @@ async function fetchPage(db, spec, state, meta) {
   );
 }
 
+// Long words (e.g. "phosphoribosylaminoimidazole") get break points, so a cell can
+// wrap them instead of pushing the table wider than the page; shorter words never break.
+const LONG_WORD = 20;
+
+function breakable(node) {
+  if (!(node instanceof Text) || !/\S{21,}/.test(node.data)) return node;
+  const out = document.createDocumentFragment();
+  for (const part of node.data.split(/(\s+)/)) {
+    if (part.length <= LONG_WORD) {
+      out.append(part);
+      continue;
+    }
+    for (let i = 0; i < part.length; i += 12) {
+      if (i) out.append(document.createElement("wbr"));
+      out.append(part.slice(i, i + 12));
+    }
+  }
+  return out;
+}
+
 function cell(spec, column, value) {
   if (column.multivalued) {
     const values = value ? JSON.parse(value) : [];
     return renderList(spec, column.kind, values, { format: column.format, enumName: column.enum, labels: column.labels });
   }
   if (column.kind === "boolean" && value !== null) value = Boolean(value);
-  return renderScalar(spec, column.kind, value, { format: column.format, enumName: column.enum, labels: column.labels });
+  return breakable(renderScalar(spec, column.kind, value, { format: column.format, enumName: column.enum, labels: column.labels }));
 }
 
 function renderTabs(container, spec, state, meta, go) {
@@ -368,7 +389,7 @@ async function togglePreview(dbReady, spec, tr, button, href) {
     button.setAttribute("aria-expanded", "false");
     return;
   }
-  const cell = el("td", { colspan: spec.columns.length + 1 }, el("p", { class: "muted" }, "Loading…"));
+  const cell = el("td", { colspan: spec.columns.length + (quick ? 2 : 1) }, el("p", { class: "muted" }, "Loading…"));
   const previewRow = el("tr", { class: "preview", "data-key": key, id: `preview-${key}` }, cell);
   tr.after(previewRow);
   button.setAttribute("aria-expanded", "true");
@@ -389,6 +410,130 @@ function applyLive(container, spec, live) {
     td.dataset.live = "true";
     td.title = `Signed off by ${recent.curator} at ${recent.decided_at}, after this build`;
   }
+}
+
+// Quick sign-off: one-click buttons in each row for the outcomes the schema marks with
+// browser_quick, for a logged-in user on a deployment with a sign-off service. Set by main.
+let quick = null;
+
+function quickField(spec) {
+  return spec.form?.fields.find((f) => f.quick?.length) ?? null;
+}
+
+// The row's statement in words, from the title template and the row's columns.
+function rowTitle(spec, row) {
+  return (spec.title_template || "").replace(/\{([\w.]+)\}/g, (_, path) => {
+    const value = row[path.split(".").join("__")];
+    return value === undefined || value === null ? "" : String(value);
+  });
+}
+
+function quickButtons(spec, row, href) {
+  const field = quickField(spec);
+  return el(
+    "div",
+    { class: "quick-actions" },
+    field.quick.map((value) => {
+      const option = field.options.find((o) => o.value === value);
+      return el(
+        "button",
+        {
+          type: "button",
+          class: `quick-btn quick-${value}`,
+          title: option?.description || null,
+          onclick: (event) => {
+            event.stopPropagation();
+            openQuick(spec, event.target.closest("tr"), row, option);
+          },
+        },
+        option?.title || value,
+      );
+    }),
+    el("a", { href: `${href}#signoff`, class: "quick-more", "aria-label": "More sign-off options", title: "More sign-off options" }, "⋯"),
+  );
+}
+
+// The confirm strip under a row: what is being signed off, the latest decision, the
+// form's free-text fields, Confirm and Cancel. Sign-offs are permanent, so one click
+// never records one.
+function openQuick(spec, tr, row, option) {
+  const { config, dbReady, table } = quick;
+  const field = quickField(spec);
+  const key = row.key;
+  tr.parentElement.querySelector(`tr.quick[data-key="${CSS.escape(key)}"]`)?.remove();
+  const latest = el("p", { class: "quick-latest muted" }, "Checking for earlier sign-offs…");
+  const message = el("p", { class: "form-message", role: "status" });
+  const texts = spec.form.fields
+    .filter((f) => f.widget === "textarea")
+    .map((f) => el("label", { class: "quick-field" }, el("span", {}, slotTitle(f)), el("textarea", { name: f.name, rows: 2 })));
+  const confirm = el("button", { type: "button", class: "button small", disabled: true }, `Confirm`);
+  const cancel = el("button", { type: "button", class: "link" }, "Cancel");
+  const strip = el(
+    "tr",
+    { class: "quick", "data-key": key },
+    el(
+      "td",
+      { colspan: spec.columns.length + 2 },
+      el("p", { class: "quick-title" }, el("strong", {}, `${option.title}: `), rowTitle(spec, row)),
+      latest,
+      texts,
+      el("div", { class: "quick-buttons" }, confirm, cancel, message),
+    ),
+  );
+  tr.after(strip);
+  let seen = null;
+  const outcomeTitle = (value) => field.options.find((o) => o.value === value)?.title || value;
+  async function loadLatest() {
+    const result = await decisions(config, key);
+    if (!result.ok) {
+      latest.textContent = result.body.detail || `Could not check earlier sign-offs (HTTP ${result.status}).`;
+      return false;
+    }
+    const last = result.body.decisions.at(-1);
+    seen = last ? last.decision_id : null;
+    if (!last) {
+      latest.textContent = "No sign-offs yet.";
+      return true;
+    }
+    const who = last.curator?.name || last.curator?.orcid || "a curator";
+    latest.textContent = `Latest: ${outcomeTitle(last[field.name])} by ${who}, ${readableTime(last.decided_at)}.`;
+    if (result.body.status) {
+      applyLive(table, spec, { [key]: { status: result.body.status, curator: who, decided_at: last.decided_at } });
+    }
+    return true;
+  }
+  cancel.addEventListener("click", () => strip.remove());
+  confirm.addEventListener("click", async () => {
+    confirm.disabled = true;
+    message.className = "form-message";
+    message.textContent = "Saving…";
+    const user = currentUser();
+    const record = user ? await getRecord(await dbReady, key) : null;
+    if (!user || !record) {
+      message.textContent = user ? "This record is not in the index." : "Your ORCID login has expired; log in again.";
+      message.className = "form-message error";
+      return;
+    }
+    const values = { [field.name]: option.value };
+    for (const area of strip.querySelectorAll("textarea")) if (area.value.trim()) values[area.name] = area.value.trim();
+    const result = await signOff(config, user, key, { record, seenDecision: seen, values });
+    if (result.ok) {
+      const decision = result.body.decision;
+      const who = decision.curator?.name || decision.curator?.orcid;
+      applyLive(table, spec, { [key]: { status: decision[field.name], curator: who, decided_at: decision.decided_at } });
+      liveCache = null;
+      strip.remove();
+      return;
+    }
+    message.textContent = result.body.detail || `Sign-off failed (HTTP ${result.status}).`;
+    message.className = "form-message error";
+    // Someone else decided meanwhile: show it; Confirm then records this on top.
+    if (result.status === 409) await loadLatest();
+    confirm.disabled = false;
+  });
+  loadLatest().then(() => {
+    confirm.disabled = false;
+  });
 }
 
 function renderTable(container, spec, state, rows, go, db) {
@@ -416,6 +561,7 @@ function renderTable(container, spec, state, rows, go, db) {
         : column.title;
       return el("th", { scope: "col", "aria-sort": ariaSort, "data-column": column.name, title: column.description || null }, label);
     }),
+    quick ? el("th", { scope: "col", class: "actions-col" }, "Sign off") : null,
   );
   const body = rows.map((row) => {
     const href = siteUrl(`record.html?id=${encodeURIComponent(row.key)}`);
@@ -449,6 +595,7 @@ function renderTable(container, spec, state, rows, go, db) {
           linkHere ? el("a", { href, class: "record-link" }, content) : content,
         );
       }),
+      quick ? el("td", { class: "actions-cell", "data-label": "Sign off" }, quickButtons(spec, row, href)) : null,
     );
     toggle.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -507,6 +654,7 @@ async function main() {
     const tabs = document.getElementById("tabs");
     const controls = document.getElementById("controls");
     const table = document.getElementById("table");
+    if (config.service && quickField(spec) && currentUser()) quick = { config, dbReady, table };
     const count = document.getElementById("count");
     const notice = document.getElementById("notice");
     const pager = document.getElementById("pager");

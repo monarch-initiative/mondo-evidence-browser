@@ -40,6 +40,7 @@ SLOT_ANNOTATIONS = {
     "browser_collapsed",
     "browser_role",
     "browser_labels",
+    "browser_quick",
 }
 CLASS_ANNOTATIONS = {
     "browser_root",
@@ -334,13 +335,15 @@ def build_view_spec(schema_path: Path = SCHEMA_PATH) -> dict[str, Any]:
             entry = builder.slot_entry(slot)
             ann = _annotations(slot, SLOT_ANNOTATIONS)
             widget = ann.get("browser_widget") or ("select" if entry["kind"] == "enum" else "text")
-            fields.append(
-                {
-                    **entry,
-                    "widget": widget,
-                    "options": _enum_values(sv, slot.range) if entry["kind"] == "enum" else None,
-                }
-            )
+            options = _enum_values(sv, slot.range) if entry["kind"] == "enum" else None
+            quick = str(ann.get("browser_quick", "")).split()
+            unknown = [q for q in quick if q not in {o["value"] for o in options or []}]
+            if unknown:
+                raise SpecError(
+                    f"browser_quick on {slot.name} names {', '.join(unknown)}, "
+                    "which are not options of the field"
+                )
+            fields.append({**entry, "widget": widget, "options": options, "quick": quick})
         form = {"class": form_class, "fields": fields}
 
     # Overlays: browser subclasses that add display hints to imported classes; the

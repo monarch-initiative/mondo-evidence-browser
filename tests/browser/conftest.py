@@ -158,6 +158,25 @@ def big_site(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Site]:
     yield from _serve(root, store_dir=store)
 
 
+LONG_WORD = "phosphoribosylaminoimidazolesuccinocarboxamide"
+
+
+@pytest.fixture(scope="module")
+def long_word_site(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Site]:
+    """The fixture packets with a very long word in every value, as real labels have."""
+    root = tmp_path_factory.mktemp("longword")
+    store = root / "store"
+    store.mkdir()
+    with open(store / "packets_000.jsonl", "w") as f:
+        for line in (FIXTURES / "packets_000.jsonl").open():
+            p = json.loads(line)
+            for field in ("object", "object_label", "subject_label"):
+                if p["statement"].get(field):
+                    p["statement"][field] = f"{p['statement'][field]} {LONG_WORD}"
+            f.write(json.dumps(p) + "\n")
+    yield from _serve(root, store_dir=store)
+
+
 @pytest.fixture(scope="module")
 def external_data_site(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Site]:
     """The site on one origin, its data on another, like a bucket."""
