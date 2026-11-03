@@ -299,3 +299,8 @@ def test_the_score_visuals_find_their_values_by_role(spec: dict[str, Any]) -> No
         "counted": "counted",
         "reason": "reason",
     }
+
+
+def test_the_statement_text_is_the_headings_fallback(spec: dict[str, Any]) -> None:
+    """When the title template cannot be filled, the packet's own sentence heads the page."""
+    assert spec["roles"]["statement_text"] == ["statement", "statement_text"]

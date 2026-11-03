@@ -26,7 +26,9 @@
 #                                 Mondo term), source_name, source_id, source_term,
 #                                 source_term_label, via, mapping_predicate, confidence,
 #                                 source_assertion, direction, strength, items, anchor
-#                                 (an evidence line's id on the page); evidence
+#                                 (an evidence line's id on the page); statement_text
+#                                 (the heading when the title template cannot be filled);
+#                                 evidence
 #                                 (the section the evidence map heads); for the score:
 #                                 score, band, prior, scaling, log_odds, components; for
 #                                 a score component: line, kind, source, direction,
@@ -196,6 +198,9 @@ classes:
           browser_column: 3
           browser_field: label
           browser_filter: true
+      statement_text:
+        annotations:
+          browser_role: statement_text  # the heading when the title template cannot be filled
       object_label:
         title: Value
         annotations:

@@ -9,11 +9,11 @@ import { decisions, signOff } from "./service.js";
 import { evidenceMap, recordGauge } from "./charts.js";
 import {
   el,
-  fillHeading,
   fillTemplate,
   getPath,
   isEmpty,
   recordContext,
+  recordHeading,
   renderObject,
   renderValue,
   slotTitle,
@@ -241,8 +241,8 @@ async function main() {
       );
       return;
     }
-    document.title = fillTemplate(spec.title_template, record) || record[spec.key];
-    const heading = spec.title_template ? fillHeading(spec, spec.title_template, record) : [record[spec.key]];
+    const heading = recordHeading(spec, record);
+    document.title = heading.map((part) => (typeof part === "string" ? part : part.textContent)).join("");
     const lede = spec.lede ? getPath(record, spec.lede) : null;
     const signoff = el("section", { class: "panel", id: "signoff" });
     const history = el("section", { class: "panel", id: "history" });
