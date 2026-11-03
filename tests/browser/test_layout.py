@@ -186,3 +186,40 @@ def test_a_very_long_word_cannot_widen_the_table(
     assert m["pageWidth"] <= m["vw"], m
     assert m["tableRight"] <= m["vw"] + 1, m
     assert m["cellsOutside"] == 0, m
+
+
+VISUALS_OUTSIDE = """() => {
+  const vw = document.documentElement.clientWidth;
+  const drawn = 'figure.gauge *, figure.evidence-map *, figure.contributions *';
+  const outside = e => {
+    const b = e.getBoundingClientRect();
+    return b.width && (b.right > vw + 1 || b.left < -1);
+  };
+  const clips = e =>
+    getComputedStyle(e).overflow !== 'visible' && e.scrollWidth > e.clientWidth + 1;
+  const name = e => e.className || e.tagName;
+  return {
+    vw,
+    pageWidth: document.documentElement.scrollWidth,
+    out: [...document.querySelectorAll(drawn)].filter(outside).map(name),
+    clipped: [...document.querySelectorAll(drawn)].filter(clips).map(name),
+  };
+}"""
+
+
+@pytest.mark.parametrize("width", [1440, 1024, 800, 375])
+def test_the_record_page_visuals_fit(page: Page, site: Site, width: int, font: str) -> None:
+    """The gauge, the evidence map and the contribution chart never widen the page."""
+    page.set_viewport_size({"width": width, "height": 900})
+    page.goto(f"{site.url}/record.html?id=pkt_9c18e79339f2")
+    if font == "wide font":
+        page.add_style_tag(content=WIDE_FONT)
+    expect(page.locator("figure.evidence-map")).to_be_visible()
+    page.locator("#record details", has_text="How the score was computed").locator(
+        "summary"
+    ).click()
+    expect(page.locator("figure.contributions")).to_be_visible()
+    m = page.evaluate(VISUALS_OUTSIDE)
+    assert m["pageWidth"] <= m["vw"], m
+    assert m["out"] == [], m
+    assert m["clipped"] == [], m

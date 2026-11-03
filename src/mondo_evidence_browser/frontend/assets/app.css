@@ -398,6 +398,127 @@ pre.raw { background: var(--panel); border: 1px solid var(--line); border-radius
 .lede.pos::before { background: var(--pos); }
 .lede.neg::before { background: var(--neg); }
 
+/* The verdict: the score on its gauge beside the sentence that says what it means. */
+.verdict {
+  display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 8px 28px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 16px 20px; margin: 14px 0 16px;
+}
+.verdict .lede { margin: 0; }
+.verdict .lede::before { display: none; }
+.verdict:not(:has(figure.gauge)) { display: block; }
+@media (max-width: 700px) { .verdict { grid-template-columns: minmax(0, 1fr); padding: 14px 16px; } }
+
+figure.gauge { margin: 0; display: grid; gap: 6px; min-width: 0; }
+.gauge-band-name { display: inline-block; }
+.gauge-reading { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.gauge-value { font-size: 1.9rem; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+figure.gauge.pos .gauge-value { color: var(--pos); }
+figure.gauge.neg .gauge-value { color: var(--neg); }
+.gauge-band-name { font-weight: 650; color: var(--ink-2); }
+.gauge-band-name::first-letter { text-transform: uppercase; }
+.gauge-track { position: relative; display: flex; height: 10px; border-radius: 999px; gap: 2px; margin-top: 4px; }
+.gauge-band { height: 100%; opacity: 0.35; transition: opacity 0.2s; }
+.gauge-band:first-child { border-radius: 999px 0 0 999px; }
+.gauge-band:last-child { border-radius: 0 999px 999px 0; }
+.gauge-band.current { opacity: 1; }
+.tone-neg-2 { background: var(--neg); }
+.tone-neg-1 { background: color-mix(in srgb, var(--neg) 55%, var(--line-strong)); }
+.tone-0 { background: var(--line-strong); }
+.tone-pos-1 { background: color-mix(in srgb, var(--pos) 55%, var(--line-strong)); }
+.tone-pos-2 { background: var(--pos); }
+.gauge-marker {
+  position: absolute; top: 50%; width: 18px; height: 18px; border-radius: 50%; transform: translate(-50%, -50%);
+  background: var(--panel); border: 3px solid var(--ink); box-shadow: var(--shadow);
+}
+.gauge-ends { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Where the evidence comes from: the Mondo term, then a branch per independent source. */
+figure.evidence-map {
+  margin: 0 0 18px; padding: 16px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--line);
+  display: grid; grid-template-columns: minmax(150px, 240px) minmax(0, 1fr); gap: 12px 0; align-items: center;
+}
+.map-hub {
+  display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--radius-sm); min-width: 0;
+  background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.map-origin, .map-kind { font-size: 0.72rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.map-label { font-weight: 650; overflow-wrap: anywhere; }
+.map-id { font-family: var(--mono); font-size: 0.85rem; }
+ul.map-branches { list-style: none; margin: 0; padding: 0 0 0 28px; display: grid; gap: 10px; position: relative; min-width: 0; }
+/* The trunk joining the term to its branches, and each branch's line off it. */
+ul.map-branches::before { content: ""; position: absolute; left: 0; top: calc(50% - 1px); width: 14px; border-top: 2px solid var(--line-strong); }
+li.map-branch { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; padding-left: 14px; }
+/* ::before is the branch's own line, coloured by direction; ::after the trunk's run past
+   it, from the first branch's middle to the last one's. */
+li.map-branch::before { content: ""; position: absolute; left: -14px; top: calc(50% - 1px); width: 28px; border-top: 2px solid var(--line-strong); }
+li.map-branch::after { content: ""; position: absolute; left: -14px; top: -6px; bottom: -6px; border-left: 2px solid var(--line-strong); }
+li.map-branch:first-child::after { top: calc(50% - 1px); }
+li.map-branch:last-child::after { bottom: calc(50% - 1px); }
+li.map-branch:only-child::after { display: none; }
+li.map-branch.dir-pos::before { border-top-color: var(--pos); }
+li.map-branch.dir-neg::before { border-top-color: var(--neg); }
+li.map-branch.not-counted::before { border-top-style: dashed; }
+.map-edge {
+  flex: none; font-size: 0.75rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; text-transform: capitalize;
+}
+.dir-pos > .map-edge { background: var(--pos-soft); color: var(--pos); }
+.dir-neg > .map-edge { background: var(--neg-soft); color: var(--neg); }
+a.map-node {
+  display: grid; gap: 1px; padding: 8px 12px; border-radius: var(--radius-sm); min-width: 0;
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink); transition: border-color 0.15s;
+}
+a.map-node:hover { border-color: var(--accent); text-decoration: none; }
+a.map-node.not-counted { opacity: 0.7; border-style: dashed; }
+.map-source { font-weight: 650; overflow-wrap: anywhere; }
+.map-cluster {
+  display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; border-radius: var(--radius-sm); min-width: 0;
+  border: 1px dashed var(--line-strong);
+}
+.map-note { flex-basis: 100%; margin: 0; font-size: 0.8rem; color: var(--muted); }
+figure.evidence-map > figcaption { grid-column: 1 / -1; font-size: 0.88rem; color: var(--ink-2); }
+section.line { scroll-margin-top: 80px; }
+section.line:target { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: var(--radius); }
+@container (max-width: 560px) {
+  figure.evidence-map { grid-template-columns: minmax(0, 1fr); }
+  ul.map-branches { padding-left: 14px; }
+  ul.map-branches::before { display: none; }
+  /* The hub sits above: the trunk comes down from it. */
+  li.map-branch:first-child::after, li.map-branch:only-child::after { display: block; top: -12px; }
+  li.map-branch { flex-wrap: wrap; }
+}
+
+/* The score maths: one bar per line from zero, right for support, left for dispute. */
+.score-maths { display: grid; gap: 18px; }
+figure.contributions { margin: 0; display: grid; gap: 4px; }
+.contribution {
+  display: grid; grid-template-columns: minmax(0, 13rem) minmax(0, 1fr) 4rem; gap: 2px 14px; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid var(--line);
+}
+.contribution-label { display: grid; min-width: 0; }
+.contribution-label .name { font-weight: 600; overflow-wrap: anywhere; }
+.contribution-label .detail { font-size: 0.78rem; color: var(--muted); }
+.contribution .track { position: relative; height: 14px; }
+.contribution .track::before {
+  content: ""; position: absolute; left: var(--zero); top: -6px; bottom: -6px; border-left: 1px solid var(--line-strong);
+}
+.contribution .bar { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--muted); }
+.contribution.pos .bar { background: var(--pos); }
+.contribution.neg .bar { background: var(--neg); }
+.contribution.prior .bar { background: var(--line-strong); }
+.contribution.not-counted .bar { background: none; border: 2px dashed var(--line-strong); }
+.contribution.not-counted .contribution-value { color: var(--muted); text-decoration: line-through; }
+.contribution.total { border-bottom: 0; border-top: 2px solid var(--line-strong); padding-top: 10px; }
+.contribution.total .name { font-weight: 750; }
+.contribution.total .bar { opacity: 0.85; }
+.contribution-value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
+.contribution-note { grid-column: 1 / -1; margin: 0; font-size: 0.82rem; color: var(--muted); }
+figure.contributions > figcaption { margin-top: 8px; font-size: 0.9rem; color: var(--ink-2); }
+@container (max-width: 520px) {
+  .contribution { grid-template-columns: minmax(0, 1fr) 4rem; }
+  .contribution-label { grid-column: 1 / -1; }
+}
+
 /* Evidence: one card per item, drawn by its renderer. */
 .panel.evidence > ol.cards { gap: 14px; }
 li.card-rendered { list-style: none; }
@@ -447,7 +568,7 @@ details.fold > :not(summary) { margin: 16px 22px 20px; }
 .main-col, .side-col { display: grid; gap: 0; align-content: start; min-width: 0; }
 @media (min-width: 1100px) {
   #record { display: grid; grid-template-columns: minmax(0, 1fr) 360px; column-gap: 24px; align-items: start; }
-  #record > .crumbs, #record > h1, #record > .lede, #record > dl.summary, #record > .raw-record,
+  #record > .crumbs, #record > h1, #record > .verdict, #record > dl.summary, #record > .raw-record,
   #record > details.fold { grid-column: 1 / -1; }
   #record > .main-col { grid-column: 1; }
   #record > .side-col { grid-column: 2; }

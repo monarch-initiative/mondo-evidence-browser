@@ -660,3 +660,170 @@ def test_the_strip_says_what_was_decided_before(page: Page, site: Site) -> None:
     expect(page.locator(f"tr.quick[data-key='{key}']")).to_contain_text(
         "Latest: Defer by Josiah Carberry"
     )
+
+
+# Draws a score with the site's own modules, outside any record: for the cases the
+# fixture packets do not have yet (disputing lines, lines that do not count).
+DRAW = """async ([module, call, args]) => {
+  const base = document.querySelector('script[type=module]').src.replace(/[^/]+$/, '');
+  const m = await import(base + module);
+  const spec = await (await fetch('view-spec.json')).json();
+  const node = call === 'renderValue'
+    ? m.renderValue(spec, m.slotAtPath(spec, ['inclusion_score']), args, 0, null)
+    : m.evidenceMap(spec, args, { term: 'MONDO:0000001', termLabel: 'test disease' });
+  node.id = 'drawn';
+  document.querySelector('#record').prepend(node);
+}"""
+
+
+def _component(line: str, source: str, weight: float, **extra: object) -> dict[str, object]:
+    return {
+        "line_id": line,
+        "kind": "concordance",
+        "source": source,
+        "direction": 1 if weight >= 0 else -1,
+        "weight": weight,
+        "cluster": source,
+        "counted": True,
+        **extra,
+    }
+
+
+SYNTHETIC_SCORE = {
+    "value": 0.46,
+    "band": "moderate support",
+    "claim_prior": 0.0,
+    "scaling": 2.0,
+    "log_odds": 1.0,
+    "components": [
+        _component("el_doid", "doid", 0.8),
+        _component("el_ordo", "ordo", -0.3),
+        _component(
+            "el_omim",
+            "omim",
+            0.5,
+            cluster="doid",
+            counted=False,
+            reason="Same independence cluster as Disease Ontology",
+        ),
+    ],
+}
+
+
+def test_the_verdict_shows_the_score_on_a_gauge(page: Page, site: Site) -> None:
+    """Where the score sits from -1 (disputed) to +1 (supported), on the rule's bands."""
+    record = site.index.get(PACKET)
+    assert record is not None
+    score = record["inclusion_score"]
+    page.goto(f"{site.url}/record.html?id={PACKET}")
+    gauge = page.locator(".verdict figure.gauge")
+    expect(gauge).to_have_attribute("role", "img")
+    label = gauge.get_attribute("aria-label") or ""
+    assert f"{score['value']:.2f}" in label and score["band"] in label, label
+    expect(gauge.locator(".gauge-band")).to_have_count(5)
+    expect(gauge.locator(".gauge-band.current")).to_have_attribute("data-band", score["band"])
+    left = gauge.locator(".gauge-marker").evaluate("m => parseFloat(m.style.left)")
+    assert abs(left - (score["value"] + 1) * 50) < 0.5
+    expect(page.locator(".verdict .lede")).to_contain_text("Supported by 2 independent sources")
+    # Shown once: not again as a fact tile.
+    expect(page.locator("dl.summary [data-column=inclusion_score__value]")).to_have_count(0)
+
+
+def test_the_score_maths_draws_each_lines_contribution(page: Page, site: Site) -> None:
+    record = site.index.get(PACKET)
+    assert record is not None
+    score = record["inclusion_score"]
+    page.goto(f"{site.url}/record.html?id={PACKET}")
+    maths = page.locator("#record details", has_text="How the score was computed")
+    maths.locator("summary").click()
+    chart = maths.locator("figure.contributions")
+    expect(chart).to_be_visible()
+    # The starting point, one bar per line, and the total.
+    expect(chart.locator(".contribution")).to_have_count(len(score["components"]) + 2)
+    expect(chart.locator(".contribution.prior")).to_contain_text(f"{score['claim_prior']:+.2f}")
+    k = score["scaling"]
+    widths = {}
+    for component in score["components"]:
+        row = chart.locator(f".contribution[data-line='{component['line_id']}']")
+        expect(row).to_have_class(re.compile(r"\bpos\b"))
+        expect(row).to_contain_text(
+            {"doid": "Disease Ontology", "ordo": "Orphanet (ORDO)"}[component["source"]]
+        )
+        expect(row).to_contain_text(f"{k * component['weight']:+.2f}")
+        widths[component["line_id"]] = row.locator(".bar").evaluate(
+            "b => b.getBoundingClientRect().width"
+        )
+    total = chart.locator(".contribution.total")
+    expect(total).to_contain_text(f"{score['log_odds']:+.2f}")
+    total_width = total.locator(".bar").evaluate("b => b.getBoundingClientRect().width")
+    for component in score["components"]:  # bars to scale
+        expected = k * component["weight"] / score["log_odds"]
+        assert abs(widths[component["line_id"]] / total_width - expected) < 0.02
+    expect(chart.locator("figcaption")).to_contain_text(f"{score['value']:.2f}")
+    # The exact numbers are still there, as a table.
+    expect(maths.locator("table.detail-table[data-class=ScoreComponent]")).to_be_visible()
+
+
+def test_lines_that_dispute_or_do_not_count_are_drawn_apart(page: Page, site: Site) -> None:
+    page.goto(f"{site.url}/record.html?id={PACKET}")
+    expect(page.locator("h1")).to_be_visible()
+    page.evaluate(DRAW, ["render.js", "renderValue", SYNTHETIC_SCORE])
+    chart = page.locator("#drawn figure.contributions")
+    expect(chart.locator(".contribution[data-line=el_doid]")).to_have_class(re.compile(r"\bpos\b"))
+    disputing = chart.locator(".contribution[data-line=el_ordo]")
+    expect(disputing).to_have_class(re.compile(r"\bneg\b"))
+    expect(disputing).to_contain_text("-0.60")
+    left = chart.locator(".contribution[data-line=el_omim]")
+    expect(left).to_have_class(re.compile(r"\bnot-counted\b"))
+    expect(left).to_contain_text("Same independence cluster as Disease Ontology")
+    expect(chart.locator(".contribution.total")).to_contain_text("+1.00")
+    # A disputing bar runs left of zero, a supporting one right of it.
+    zero = chart.locator(".contribution[data-line=el_doid] .bar").evaluate(
+        "b => b.getBoundingClientRect().left"
+    )
+    right = disputing.locator(".bar").evaluate("b => b.getBoundingClientRect().right")
+    assert abs(right - zero) < 1.5
+
+
+def test_the_evidence_starts_with_a_map_of_its_sources(page: Page, site: Site) -> None:
+    record = site.index.get(PACKET)
+    assert record is not None
+    page.goto(f"{site.url}/record.html?id={PACKET}")
+    evidence = page.locator("#record .evidence")
+    graph = evidence.locator("figure.evidence-map")
+    expect(graph).to_be_visible()
+    assert evidence.evaluate(
+        "s => s.querySelector('h2').nextElementSibling.matches('figure.evidence-map')"
+    )
+    hub = graph.locator(".map-hub")
+    expect(hub).to_contain_text("arginase deficiency")
+    expect(hub).to_contain_text("MONDO:0008814")
+    expect(graph.locator(".map-branch")).to_have_count(2)
+    expect(graph.locator(".map-branch.dir-pos")).to_have_count(2)
+    expect(graph.locator("figcaption")).to_have_text(
+        "2 independent sources support this statement; none dispute it."
+    )
+    # Each source links to its evidence below.
+    for component in record["inclusion_score"]["components"]:
+        link = graph.locator(f"a[href='#line-{component['line_id']}']")
+        expect(link).to_have_count(1)
+        link.click()
+        expect(page.locator(f"#line-{component['line_id']}")).to_be_in_viewport()
+
+
+def test_the_map_groups_dependent_sources_and_shows_disputes(page: Page, site: Site) -> None:
+    page.goto(f"{site.url}/record.html?id={PACKET}")
+    expect(page.locator("h1")).to_be_visible()
+    page.evaluate(DRAW, ["charts.js", "evidenceMap", SYNTHETIC_SCORE["components"]])
+    graph = page.locator("#drawn")
+    expect(graph.locator(".map-hub")).to_contain_text("test disease")
+    cluster = graph.locator(".map-cluster")
+    expect(cluster).to_have_count(1)  # Disease Ontology and OMIM count once
+    expect(cluster.locator(".map-node")).to_have_count(2)
+    expect(cluster).to_contain_text("count once")
+    expect(graph.locator(".map-node.not-counted")).to_contain_text("OMIM")
+    expect(graph.locator(".map-branch.dir-neg")).to_contain_text("Orphanet (ORDO)")
+    expect(graph.locator(".map-branch.dir-neg")).to_contain_text("disputes")
+    expect(graph.locator("figcaption")).to_have_text(
+        "1 independent source supports this statement; 1 disputes it."
+    )
