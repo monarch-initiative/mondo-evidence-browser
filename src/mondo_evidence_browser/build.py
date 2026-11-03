@@ -300,6 +300,8 @@ def build(cfg: BuildConfig) -> BuildReport:
     (cfg.site_dir / "config.json").write_text(json.dumps(site_config, indent=2) + "\n")
     # Names for values the schema marks with browser_labels, from the registries.
     spec["labels"] = {"resources": {r.id: r.name for r in builder.registry.resources.values()}}
+    # The score rule's bands (D-047), strongest first, for the score gauge.
+    spec["score_bands"] = [{"min": low, "label": label} for low, label in rule.bands]
     (cfg.site_dir / "view-spec.json").write_text(json.dumps(spec, indent=1) + "\n")
 
     report.tab_counts = EvidenceIndex(cfg.index_path).meta()["tab_counts"]

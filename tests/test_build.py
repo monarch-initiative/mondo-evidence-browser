@@ -53,6 +53,7 @@ def test_build_writes_a_complete_static_site(tmp_path: Path) -> None:
         assert (site / name).is_file(), name
     published = json.loads((site / "view-spec.json").read_text())
     published.pop("labels")  # added by the build from the registries
+    published.pop("score_bands")  # added by the build from the score rule
     assert published == build_view_spec()
 
 
@@ -251,3 +252,16 @@ def test_the_site_spec_carries_names_for_labelled_values(tmp_path: Path) -> None
     build(config(tmp_path))
     spec = json.loads((tmp_path / "site" / "view-spec.json").read_text())
     assert spec["labels"]["resources"]["doid"] == "Disease Ontology"
+
+
+def test_the_site_spec_carries_the_score_bands(tmp_path: Path) -> None:
+    """The gauge shades the rule's bands (D-047), strongest first, from the rule config."""
+    build(config(tmp_path))
+    spec = json.loads((tmp_path / "site" / "view-spec.json").read_text())
+    assert spec["score_bands"] == [
+        {"min": 0.8, "label": "strong support"},
+        {"min": 0.4, "label": "moderate support"},
+        {"min": -0.4, "label": "uncertain"},
+        {"min": -0.8, "label": "moderate dispute"},
+        {"min": -1.0, "label": "strong dispute"},
+    ]

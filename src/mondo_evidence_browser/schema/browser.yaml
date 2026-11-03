@@ -25,7 +25,12 @@
 #                                 line under the heading), term / term_label (the record's
 #                                 Mondo term), source_name, source_id, source_term,
 #                                 source_term_label, via, mapping_predicate, confidence,
-#                                 source_assertion, direction, strength, items
+#                                 source_assertion, direction, strength, items, anchor
+#                                 (an evidence line's id on the page); evidence
+#                                 (the section the evidence map heads); for the score:
+#                                 score, band, prior, scaling, log_odds, components; for
+#                                 a score component: line, kind, source, direction,
+#                                 weight, cluster, counted, reason
 #   browser_labels: resources     values are resource ids, shown by their registry names
 #   browser_quick: "<v> <v>"      on a sign-off form field: these options get one-click
 #                                 buttons in the table (others are on the record page)
@@ -39,8 +44,9 @@
 #                                 identifier placeholders become links
 #   browser_overlay: true         a subclass that adds display hints to an imported class:
 #                                 instances of the parent are shown as this class
-#   browser_renderer: mapping|line  draw instances with that renderer (anything else, or
-#                                 none, gets the generic view)
+#   browser_renderer: mapping|line|score  draw instances with that renderer (anything
+#                                 else, or none, gets the generic view); score draws each
+#                                 line's contribution above the generic view
 #
 # A schema change means regenerating (`just build`), never editing UI code.
 
@@ -94,6 +100,7 @@ classes:
       has_evidence_lines:
         title: Evidence lines
         annotations:
+          browser_role: evidence
           browser_preview: 2
           browser_section: Evidence
       evidence_synthesis:
@@ -208,6 +215,7 @@ classes:
       statement) through 0 (no net evidence) to +1 (it supports it).
     annotations:
       browser_explain: true
+      browser_renderer: score
     attributes:
       summary:
         title: Verdict
@@ -224,6 +232,7 @@ classes:
           The inclusion score S, from -1 (disputed) to +1 (supported). Absent when no
           rule covers the claim type.
         annotations:
+          browser_role: score
           browser_column: 0
           browser_sortable: true
           browser_default_sort: desc
@@ -231,6 +240,8 @@ classes:
       band:
         title: Band
         description: Categorical label derived from score bands (D-047).
+        annotations:
+          browser_role: band
       rule_id:
         title: Rule
         description: The declared aggregation rule that produced the score (D-048).
@@ -246,14 +257,20 @@ classes:
         description: >-
           Prior log-odds for this claim type and proposing channel, before any
           evidence (D-063 Q3).
+        annotations:
+          browser_role: prior
       scaling:
         title: Scaling (k)
         range: float
         description: How strongly the summed weights move the score.
+        annotations:
+          browser_role: scaling
       log_odds:
         title: Log-odds (L)
         range: float
         description: L0 + k × Σw; the score is tanh(L / 2).
+        annotations:
+          browser_role: log_odds
       proposing_channel:
         title: Proposing channel
         description: The route that proposed the statement, which sets the claim prior.
@@ -264,6 +281,7 @@ classes:
         inlined_as_list: true
         description: How each evidence line enters the score, or why it does not.
         annotations:
+          browser_role: components
           browser_layout: table
           browser_preview: 1
       notes:
@@ -276,20 +294,27 @@ classes:
       line_id:
         title: Line
         description: The evidence line this row is about.
+        annotations:
+          browser_role: line
       kind:
         title: Kind
         description: >-
           What kind of evidence the line is, e.g. concordance (another source asserts
           the same statement) or expert judgement.
+        annotations:
+          browser_role: kind
       source:
         title: Source
         description: The resource or agent the evidence comes from.
         annotations:
+          browser_role: source
           browser_labels: resources
       direction:
         title: Direction (d)
         range: integer
         description: +1 if the line supports the statement, -1 if it disputes it (D-033).
+        annotations:
+          browser_role: direction
       strength:
         title: Strength (s)
         range: float
@@ -317,9 +342,12 @@ classes:
         title: Weight (w)
         range: float
         description: d × s × q × c, after any cap. This is what the line adds to Σw.
+        annotations:
+          browser_role: weight
       cluster:
         title: Independence cluster
         annotations:
+          browser_role: cluster
           browser_labels: resources
         description: >-
           Lines from sources that derive from each other share a cluster; only the
@@ -328,6 +356,8 @@ classes:
         title: Counted
         range: boolean
         description: Whether the line's weight is included in Σw.
+        annotations:
+          browser_role: counted
       capped:
         title: Capped
         range: boolean
@@ -336,6 +366,8 @@ classes:
       reason:
         title: Why
         description: Why the line does not count, or how it was capped.
+        annotations:
+          browser_role: reason
 
   SignOff:
     description: >-
@@ -462,6 +494,7 @@ classes:
       id:
         annotations:
           browser_layout: hidden
+          browser_role: anchor  # the line's place on the page, for the evidence map's links
       type:
         annotations:
           browser_layout: hidden

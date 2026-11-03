@@ -1,6 +1,8 @@
 // Generic, schema-driven rendering. Nothing here knows any slot by name: values are
 // rendered from the view spec (slot kind, range, format and layout annotations).
 
+import { contributionChart } from "./charts.js";
+
 export function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs)) {
@@ -195,9 +197,10 @@ const RENDERERS = {
     const items = slotWithRole(cls, "items");
     const used = cls.slots.filter((s) => s.role).map((s) => s.name);
     const words = [direction, strength ? `${strength} evidence` : null].filter(Boolean);
+    const anchor = valueWithRole(cls, line, "anchor");
     return el(
       "section",
-      { class: "line", "data-class": className },
+      { class: "line", "data-class": className, id: isEmpty(anchor) ? null : `line-${anchor}` },
       words.length
         ? el(
             "p",
@@ -207,6 +210,15 @@ const RENDERERS = {
         : null,
       items ? renderValue(spec, items, line[items.name], depth, ctx) : null,
       renderObject(spec, className, line, depth, { skip: used, ctx }),
+    );
+  },
+  // A score: each line's contribution drawn as a bar, then every number as usual.
+  score(spec, className, score, depth, ctx) {
+    return el(
+      "div",
+      { class: "score-maths", "data-class": className },
+      contributionChart(spec, className, score),
+      renderObject(spec, className, score, depth, { ctx }),
     );
   },
 };

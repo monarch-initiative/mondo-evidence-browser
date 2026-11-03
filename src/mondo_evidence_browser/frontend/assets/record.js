@@ -6,6 +6,7 @@
 import { currentUser, login, renderWho } from "./auth.js";
 import { getRecord, loadSite, openDb, readMeta } from "./db.js";
 import { decisions, signOff } from "./service.js";
+import { evidenceMap, recordGauge } from "./charts.js";
 import {
   el,
   fillHeading,
@@ -22,7 +23,9 @@ import {
 // Key facts: the table's columns the heading does not already say, plus the tab
 // ("In Mondo?"). Returns the tiles and the record slots they cover.
 function summary(spec, record) {
+  // The heading's values, and the score when the verdict's gauge shows it.
   const inHeading = new Set(templatePaths(spec.title_template));
+  if (spec.roles?.score) inHeading.add(spec.roles.score.join("."));
   const rows = [];
   const covered = new Set();
   const tile = (title, name, content) =>
@@ -52,7 +55,9 @@ function tone(spec, record) {
 
 // The record's own slots, laid out by the schema: sections (browser_section) as panels,
 // folds (browser_collapsed) as closed <details>, anything else in a "Details" panel.
+// The evidence section (browser_role: evidence) opens with the map of its sources.
 function layout(spec, record, covered, ctx) {
+  const components = spec.roles?.components ? getPath(record, spec.roles.components) : null;
   const slots = spec.classes[spec.root].slots.filter(
     (s) => s.layout !== "hidden" && !covered.has(s.name) && !isEmpty(record[s.name]),
   );
@@ -63,6 +68,7 @@ function layout(spec, record, covered, ctx) {
         "section",
         { class: `panel section-${s.section.toLowerCase().replace(/[^a-z0-9]+/g, "-")} ${s.section === "Evidence" ? "evidence" : ""}`.trim(), "data-slot": s.name },
         el("h2", {}, s.section),
+        s.role === "evidence" && !isEmpty(components) ? evidenceMap(spec, components, ctx) : null,
         renderValue(spec, s, record[s.name], 0, ctx),
       ),
     );
@@ -246,7 +252,12 @@ async function main() {
     article.replaceChildren(
       el("p", { class: "crumbs" }, el("a", { href: "index.html" }, "Records"), " › ", el("code", {}, record[spec.key])),
       el("h1", {}, heading),
-      isEmpty(lede) ? null : el("p", { class: `lede ${tone(spec, record)}`.trim() }, String(lede)),
+      el(
+        "div",
+        { class: "verdict" },
+        recordGauge(spec, record),
+        isEmpty(lede) ? null : el("p", { class: `lede ${tone(spec, record)}`.trim() }, String(lede)),
+      ),
       tiles,
       el("div", { class: "main-col" }, sections, details),
       el("aside", { class: "side-col" }, signoff, history),

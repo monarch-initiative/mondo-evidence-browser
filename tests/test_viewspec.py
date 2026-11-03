@@ -267,3 +267,35 @@ def test_quick_outcomes_must_be_options_of_the_field(tmp_path: Path) -> None:
     )
     with pytest.raises(SpecError, match="approved"):
         build_view_spec(path)
+
+
+def test_the_score_visuals_find_their_values_by_role(spec: dict[str, Any]) -> None:
+    """The gauge, the contribution chart and the evidence map read slots by browser_role."""
+    assert spec["classes"]["InclusionScore"]["renderer"] == "score"
+    assert spec["roles"]["score"] == ["inclusion_score", "value"]
+    assert spec["roles"]["band"] == ["inclusion_score", "band"]
+    assert spec["roles"]["components"] == ["inclusion_score", "components"]
+    assert spec["roles"]["evidence"] == ["has_evidence_lines"]
+
+    def roles(cls: str) -> dict[str, str]:
+        return {s["role"]: s["name"] for s in spec["classes"][cls]["slots"] if s.get("role")}
+
+    assert roles("InclusionScore") == {
+        "lede": "summary",
+        "score": "value",
+        "band": "band",
+        "prior": "claim_prior",
+        "scaling": "scaling",
+        "log_odds": "log_odds",
+        "components": "components",
+    }
+    assert roles("ScoreComponent") == {
+        "line": "line_id",
+        "kind": "kind",
+        "source": "source",
+        "direction": "direction",
+        "weight": "weight",
+        "cluster": "cluster",
+        "counted": "counted",
+        "reason": "reason",
+    }
