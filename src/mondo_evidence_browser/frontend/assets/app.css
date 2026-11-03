@@ -310,7 +310,7 @@ button.expand[aria-expanded="true"] .chevron { transform: rotate(90deg); }
 .detail-table td, .detail-table th { padding: 6px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); overflow-wrap: break-word; }
 .detail-table tr:last-child td { border-bottom: 0; }
 /* Keep symbols as written: "(d)", "(L0)" mean different things in capitals. */
-.detail-table th { background: var(--panel-2); color: var(--muted); font-weight: 600; font-size: 0.78rem; hyphens: auto; }
+.detail-table th { background: var(--panel-2); color: var(--muted); font-weight: 600; font-size: 0.78rem; }
 /* Set by render.js when the table does not fit its container. */
 .detail-wrap.stacked .detail-table thead { display: none; }
 .detail-wrap.stacked .detail-table, .detail-wrap.stacked .detail-table tbody,
@@ -382,17 +382,71 @@ ol.cards { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 .card dl.object > dd.nested > dl.object { background: var(--bg); }
 pre.raw-inline { margin: 0; white-space: pre-wrap; font-size: 0.8rem; }
 blockquote { margin: 4px 0; padding-left: 12px; border-left: 3px solid var(--line-strong); color: var(--ink-2); }
-details.raw-record > summary, #record > details > summary { cursor: pointer; font-weight: 600; color: var(--muted); margin-top: 24px; }
+details.raw-record > summary { cursor: pointer; font-weight: 600; color: var(--muted); margin-top: 24px; }
 pre.raw { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px; overflow: auto; max-height: 480px; }
 
-/* Wide screens: details on the left, sign-off and history alongside. */
+/* The statement as a sentence, the verdict under it. */
+#record h1 { font-size: 1.85rem; line-height: 1.3; max-width: 46ch; margin-bottom: 8px; }
+#record h1 a { font-size: 0.6em; font-weight: 500; font-family: var(--mono); vertical-align: 0.12em; }
+.lede { margin: 0 0 6px; font-size: 1.08rem; color: var(--ink-2); max-width: 75ch; }
+.lede::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--muted); margin-right: 10px; vertical-align: 0.05em; }
+.lede.pos::before { background: var(--pos); }
+.lede.neg::before { background: var(--neg); }
+
+/* Evidence: one card per item, drawn by its renderer. */
+.panel.evidence > ol.cards { gap: 14px; }
+li.card-rendered { list-style: none; }
+section.line { display: grid; gap: 10px; }
+section.line > dl.object:empty { display: none; }
+.line-head { margin: 0; display: flex; gap: 8px; align-items: center; font-size: 0.85rem; }
+.line-head .dir { font-weight: 700; text-transform: capitalize; padding: 2px 10px; border-radius: 999px;
+  background: var(--chip); color: var(--ink-2); }
+.line-head.dir-supports .dir { background: var(--pos-soft); color: var(--pos); }
+.line-head.dir-disputes .dir, .line-head.dir-refutes .dir { background: var(--neg-soft); color: var(--neg); }
+.line-head .strength { color: var(--muted); }
+section.line > ol.cards { gap: 10px; }
+
+article.mapping {
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel);
+  padding: 16px 18px; display: grid; gap: 14px;
+}
+article.mapping > header { display: flex; align-items: center; gap: 10px; }
+article.mapping .kind { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 6px; }
+article.mapping .source { font-weight: 650; }
+.mapping-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: center; }
+.term { display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--panel-2);
+  border: 1px solid var(--line); min-width: 0; }
+.term-origin { font-size: 0.72rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.term-label { font-weight: 650; overflow-wrap: anywhere; }
+.term-id { font-family: var(--mono); font-size: 0.85rem; }
+.mapping-link { font-size: 1.4rem; color: var(--accent); line-height: 1; }
+dl.facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 0; font-size: 0.88rem; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+@container (max-width: 520px) {
+  .mapping-pair { grid-template-columns: minmax(0, 1fr); }
+  .mapping-link { transform: rotate(90deg); justify-self: center; }
+}
+
+/* Folds: the score maths and the record's technical details, closed by default. */
+details.fold { padding: 0; }
+details.fold > summary { cursor: pointer; font-weight: 650; padding: 16px 22px; list-style: none; display: flex; align-items: center; gap: 10px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::after { content: "›"; margin-left: auto; color: var(--muted); transition: transform 0.15s; }
+details.fold[open] > summary::after { transform: rotate(90deg); }
+details.fold[open] > summary { border-bottom: 1px solid var(--line); }
+details.fold > :not(summary) { margin: 16px 22px 20px; }
+
+/* Wide screens: the account of the evidence on the left, sign-off and history alongside. */
+.main-col, .side-col { display: grid; gap: 0; align-content: start; min-width: 0; }
 @media (min-width: 1100px) {
-  #record { display: grid; grid-template-columns: minmax(0, 1fr) 380px; column-gap: 24px; align-items: start; }
-  #record > .crumbs, #record > h1, #record > dl.summary { grid-column: 1 / -1; }
-  #record > .detail { grid-column: 1; grid-row: 4 / span 3; }
-  #record > #signoff { grid-column: 2; grid-row: 4; }
-  #record > #history { grid-column: 2; grid-row: 5; }
-  #record > details { grid-column: 1; }
+  #record { display: grid; grid-template-columns: minmax(0, 1fr) 360px; column-gap: 24px; align-items: start; }
+  #record > .crumbs, #record > h1, #record > .lede, #record > dl.summary, #record > .raw-record,
+  #record > details.fold { grid-column: 1 / -1; }
+  #record > .main-col { grid-column: 1; }
+  #record > .side-col { grid-column: 2; }
 }
 
 /* ---- sign-off and history ---- */

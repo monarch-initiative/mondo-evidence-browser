@@ -70,9 +70,12 @@ export function scoreMeter(value) {
 }
 
 // A scalar (non-class) value, for both table cells and the detail view.
-export function renderScalar(spec, kind, value, { format = null, enumName = null } = {}) {
+export function renderScalar(spec, kind, value, { format = null, enumName = null, labels = null } = {}) {
   if (value === null || value === undefined) return el("span", { class: "muted" }, "—");
   if (format === "score") return scoreMeter(value);
+  // Ids the schema marks with browser_labels read by name (e.g. "Disease Ontology").
+  const name = labels ? spec.labels?.[labels]?.[value] : null;
+  if (name) return el("span", { title: value }, name);
   if (kind === "enum") {
     const entry = enumEntry(spec, enumName, value);
     return el(
@@ -102,13 +105,115 @@ export function renderList(spec, kind, values, opts) {
 }
 
 // The class to render an object as: the more specific class named by its `type`
-// designator when it is a descendant of the declared range, else the declared range.
+// designator when it is a descendant of the declared range, else the declared range;
+// then the browser's overlay of that class, if the schema has one (browser_overlay).
 export function resolveClass(spec, declared, obj) {
+  let name = declared;
   const named = obj && typeof obj === "object" ? obj.type : null;
-  if (named && named !== declared && spec.classes[named]) {
-    if (spec.classes[named].ancestors.includes(declared)) return named;
-  }
-  return declared;
+  if (named && named !== declared && spec.classes[named]?.ancestors.includes(declared)) name = named;
+  return spec.overlays?.[name] ?? name;
+}
+
+// The record-level values renderers need (the record's Mondo term), from the spec's roles.
+export function recordContext(spec, record) {
+  const at = (role) => (spec.roles?.[role] ? getPath(record, spec.roles[role]) : undefined);
+  return { term: at("term"), termLabel: at("term_label") };
+}
+
+function slotWithRole(cls, role) {
+  return cls.slots.find((s) => s.role === role);
+}
+
+function valueWithRole(cls, obj, role) {
+  const slot = slotWithRole(cls, role);
+  return slot ? obj[slot.name] : undefined;
+}
+
+function linkOrText(spec, value, kind = "curie") {
+  return isEmpty(value) ? null : renderScalar(spec, kind, value, { format: "curie" });
+}
+
+// A link to a file reads as its name: ".../mappings/mondo.sssom.tsv" -> "mondo.sssom.tsv".
+function viaLink(value) {
+  if (isEmpty(value)) return null;
+  const text = String(value);
+  if (!/^https?:\/\//.test(text)) return document.createTextNode(text);
+  const name = text.replace(/\/+$/, "").split("/").pop() || text;
+  return el("a", { href: text, rel: "noopener", target: "_blank", title: text }, name);
+}
+
+function term(spec, id, label, origin) {
+  return el(
+    "div",
+    { class: "term" },
+    el("span", { class: "term-origin" }, origin),
+    el("span", { class: "term-label" }, label || "—"),
+    id ? el("span", { class: "term-id" }, linkOrText(spec, id)) : null,
+  );
+}
+
+// Renderers a class can ask for with browser_renderer. Each reads slots by their
+// browser_role, never by name, and shows any other visible slots generically.
+const RENDERERS = {
+  // Concordance: the Mondo term and the source's term side by side, and the mapping.
+  mapping(spec, className, item, depth, ctx) {
+    const cls = spec.classes[className];
+    const role = (r) => valueWithRole(cls, item, r);
+    const sourceId = role("source_id");
+    const source = role("source_name") || spec.labels?.resources?.[sourceId] || sourceId || "Another source";
+    const predicate = role("mapping_predicate");
+    const facts = [
+      ["Mapping from", viaLink(role("via"))],
+      ["Mapping predicate", isEmpty(predicate) ? null : document.createTextNode(String(predicate))],
+      ["Confidence", isEmpty(role("confidence")) ? null : document.createTextNode(formatNumber(role("confidence")))],
+      [`${source} asserts`, isEmpty(role("source_assertion")) ? null : document.createTextNode(String(role("source_assertion")))],
+    ].filter(([, value]) => value);
+    const used = cls.slots.filter((s) => s.role).map((s) => s.name);
+    const rest = cls.slots.some((s) => !used.includes(s.name) && s.layout !== "hidden" && !isEmpty(item[s.name]))
+      ? renderObject(spec, className, item, depth, { skip: used, ctx })
+      : null;
+    return el(
+      "article",
+      { class: "mapping", "data-class": className },
+      el("header", {}, el("span", { class: "kind" }, "Concordance"), el("span", { class: "source" }, source)),
+      el(
+        "div",
+        { class: "mapping-pair" },
+        term(spec, ctx?.term, ctx?.termLabel, "Mondo"),
+        el("span", { class: "mapping-link", "aria-label": predicate ? `mapped by ${predicate}` : "mapped to" }, "⟷"),
+        term(spec, role("source_term"), role("source_term_label"), source),
+      ),
+      facts.length ? el("dl", { class: "facts" }, facts.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)])) : null,
+      rest,
+    );
+  },
+  // An evidence line: which way and how strongly, then its evidence items.
+  line(spec, className, line, depth, ctx) {
+    const cls = spec.classes[className];
+    const direction = valueWithRole(cls, line, "direction");
+    const strength = valueWithRole(cls, line, "strength");
+    const items = slotWithRole(cls, "items");
+    const used = cls.slots.filter((s) => s.role).map((s) => s.name);
+    const words = [direction, strength ? `${strength} evidence` : null].filter(Boolean);
+    return el(
+      "section",
+      { class: "line", "data-class": className },
+      words.length
+        ? el(
+            "p",
+            { class: `line-head dir-${String(direction || "").toLowerCase()}` },
+            words.map((w, i) => el("span", { class: i === 0 && direction ? "dir" : "strength" }, String(w))),
+          )
+        : null,
+      items ? renderValue(spec, items, line[items.name], depth, ctx) : null,
+      renderObject(spec, className, line, depth, { skip: used, ctx }),
+    );
+  },
+};
+
+function rendered(spec, className, obj, depth, ctx) {
+  const renderer = RENDERERS[spec.classes[className]?.renderer];
+  return renderer ? renderer(spec, className, obj, depth, ctx) : renderObject(spec, className, obj, depth, { ctx });
 }
 
 export function slotTitle(slot) {
@@ -173,8 +278,9 @@ function renderTable(spec, className, items) {
   return wrap;
 }
 
-// Any value of a slot, recursively. `depth` only limits nesting of headings.
-export function renderValue(spec, slot, value, depth = 0) {
+// Any value of a slot, recursively. `depth` only limits nesting of headings; `ctx` is
+// what renderers need from the record (see recordContext).
+export function renderValue(spec, slot, value, depth = 0, ctx = null) {
   if (isEmpty(value)) return el("span", { class: "muted" }, "—");
   if (slot.layout === "hidden") return null;
   if (slot.kind === "class") {
@@ -184,14 +290,16 @@ export function renderValue(spec, slot, value, depth = 0) {
       return el(
         "ol",
         { class: "cards" },
-        items.map((item) =>
-          el("li", { class: "card" }, renderObject(spec, resolveClass(spec, slot.class, item), item, depth + 1)),
-        ),
+        items.map((item) => {
+          const cls = resolveClass(spec, slot.class, item);
+          const plain = !spec.classes[cls]?.renderer;
+          return el("li", { class: plain ? "card" : "card-rendered" }, rendered(spec, cls, item, depth + 1, ctx));
+        }),
       );
     }
-    return renderObject(spec, resolveClass(spec, slot.class, value), value, depth + 1);
+    return rendered(spec, resolveClass(spec, slot.class, value), value, depth + 1, ctx);
   }
-  const opts = { format: slot.format, enumName: slot.enum };
+  const opts = { format: slot.format, enumName: slot.enum, labels: slot.labels };
   if (Array.isArray(value)) return renderList(spec, slot.kind, value, opts);
   if (typeof value === "object") return rawValue(value);
   return renderScalar(spec, slot.kind, value, opts);
@@ -199,12 +307,13 @@ export function renderValue(spec, slot, value, depth = 0) {
 
 // An object as a definition list of its class's slots, in schema order. Fields the
 // schema does not know (a newer source schema) are shown raw, never dropped.
-export function renderObject(spec, className, obj, depth = 0, { skip = [] } = {}) {
+export function renderObject(spec, className, obj, depth = 0, { skip = [], only = null, ctx = null } = {}) {
   const cls = spec.classes[className];
   if (!cls || typeof obj !== "object" || obj === null) return rawValue(obj);
   const known = new Set(cls.slots.map((s) => s.name));
   const rows = [];
   for (const slot of cls.slots) {
+    if (only && !only.includes(slot.name)) continue;
     if (skip.includes(slot.name) || slot.layout === "hidden" || isEmpty(obj[slot.name])) continue;
     // Lists of objects (tables, cards) get the full width under their label.
     const wide = slot.kind === "class" && slot.multivalued;
@@ -218,10 +327,11 @@ export function renderObject(spec, className, obj, depth = 0, { skip = [] } = {}
         },
         slotTitle(slot),
       ),
-      el("dd", { "data-slot": slot.name, class: ddClass }, renderValue(spec, slot, obj[slot.name], depth)),
+      el("dd", { "data-slot": slot.name, class: ddClass }, renderValue(spec, slot, obj[slot.name], depth, ctx)),
     );
   }
-  const unknown = Object.keys(obj).filter((k) => !known.has(k) && !isEmpty(obj[k]));
+  // Fields the schema does not know: shown raw, never dropped (not when picking `only`).
+  const unknown = only ? [] : Object.keys(obj).filter((k) => !known.has(k) && !isEmpty(obj[k]));
   for (const key of unknown) {
     rows.push(el("dt", { class: "unknown", title: "Not in the schema" }, key), el("dd", {}, rawValue(obj[key])));
   }
@@ -248,9 +358,47 @@ export function fillTemplate(template, record) {
   });
 }
 
+// The slot at a path from the root class, or null.
+export function slotAtPath(spec, path) {
+  let className = spec.root;
+  let slot = null;
+  for (const step of path) {
+    slot = spec.classes[className]?.slots.find((s) => s.name === step) ?? null;
+    if (!slot) return null;
+    className = spec.overlays?.[slot.class] ?? slot.class;
+  }
+  return slot;
+}
+
+// The paths a template uses, e.g. ["statement.subject", ...].
+export function templatePaths(template) {
+  return [...(template || "").matchAll(/\{([\w.]+)\}/g)].map((m) => m[1]);
+}
+
+// A template as page content: identifiers (curie slots) become links.
+export function fillHeading(spec, template, record) {
+  if (!template) return [];
+  const parts = [];
+  let last = 0;
+  for (const match of template.matchAll(/\{([\w.]+)\}/g)) {
+    parts.push(template.slice(last, match.index));
+    const path = match[1].split(".");
+    const value = getPath(record, path);
+    const slot = slotAtPath(spec, path);
+    const curie = slot && (slot.kind === "curie" || slot.format === "curie");
+    if (value !== undefined && value !== null) {
+      parts.push(curie ? renderScalar(spec, "curie", value, { format: "curie" }) : String(readableTime(value)));
+    }
+    last = match.index + match[0].length;
+  }
+  parts.push(template.slice(last));
+  return parts;
+}
+
 // What an expanded table row shows: the spec's preview slots, then a link onwards.
 export function renderPreview(spec, record, href) {
   const items = spec.preview || [];
+  const ctx = recordContext(spec, record);
   return el(
     "div",
     { class: "preview-body" },
@@ -261,7 +409,7 @@ export function renderPreview(spec, record, href) {
         "section",
         { class: "preview-item", "data-preview": item.name },
         el("h4", { title: item.description || null }, item.title),
-        renderValue(spec, item, value),
+        renderValue(spec, item, value, 0, ctx),
       );
     }),
     el("p", { class: "preview-open" }, el("a", { href, class: "button small" }, "Open the full record")),

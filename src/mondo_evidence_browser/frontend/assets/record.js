@@ -5,19 +5,86 @@
 
 import { currentUser, login, renderWho } from "./auth.js";
 import { getRecord, loadSite, openDb, readMeta } from "./db.js";
-import { el, fillTemplate, getPath, isEmpty, renderObject, renderValue, slotTitle } from "./render.js";
+import {
+  el,
+  fillHeading,
+  fillTemplate,
+  getPath,
+  isEmpty,
+  recordContext,
+  renderObject,
+  renderValue,
+  slotTitle,
+  templatePaths,
+} from "./render.js";
 
+// Key facts: the table's columns the heading does not already say, plus the tab
+// ("In Mondo?"). Returns the tiles and the record slots they cover.
 function summary(spec, record) {
+  const inHeading = new Set(templatePaths(spec.title_template));
   const rows = [];
+  const covered = new Set();
+  const tile = (title, name, content) =>
+    rows.push(el("div", { class: "stat" }, el("dt", {}, title), el("dd", { "data-column": name }, content)));
   for (const column of spec.columns) {
+    if (inHeading.has(column.path.join("."))) continue;
     const value = getPath(record, column.path);
     if (isEmpty(value)) continue;
     const slot = { ...column, name: column.name, enum: column.enum, layout: null };
-    rows.push(
-      el("div", { class: "stat" }, el("dt", {}, column.title), el("dd", { "data-column": column.name }, renderValue(spec, slot, value))),
-    );
+    tile(column.title, column.name, renderValue(spec, slot, value));
+    if (column.path.length === 1) covered.add(column.path[0]);
   }
-  return el("dl", { class: "summary" }, rows);
+  const tab = spec.tabs && spec.classes[spec.root].slots.find((s) => s.name === spec.tabs.slot);
+  if (tab && !isEmpty(record[tab.name])) {
+    tile(slotTitle(tab), tab.name, renderValue(spec, tab, record[tab.name]));
+    covered.add(tab.name);
+  }
+  return { tiles: el("dl", { class: "summary" }, rows), covered };
+}
+
+// Which way the score points, for the verdict's marker: the score-format column's sign.
+function tone(spec, record) {
+  const score = spec.columns.find((c) => c.format === "score");
+  const value = score ? getPath(record, score.path) : null;
+  return typeof value !== "number" || value === 0 ? "" : value > 0 ? "pos" : "neg";
+}
+
+// The record's own slots, laid out by the schema: sections (browser_section) as panels,
+// folds (browser_collapsed) as closed <details>, anything else in a "Details" panel.
+function layout(spec, record, covered, ctx) {
+  const slots = spec.classes[spec.root].slots.filter(
+    (s) => s.layout !== "hidden" && !covered.has(s.name) && !isEmpty(record[s.name]),
+  );
+  const sections = slots
+    .filter((s) => s.section)
+    .map((s) =>
+      el(
+        "section",
+        { class: `panel section-${s.section.toLowerCase().replace(/[^a-z0-9]+/g, "-")} ${s.section === "Evidence" ? "evidence" : ""}`.trim(), "data-slot": s.name },
+        el("h2", {}, s.section),
+        renderValue(spec, s, record[s.name], 0, ctx),
+      ),
+    );
+  const folds = new Map();
+  for (const s of slots.filter((x) => x.collapsed && !x.section)) {
+    folds.set(s.collapsed, [...(folds.get(s.collapsed) || []), s.name]);
+  }
+  const folded = [...folds].map(([title, names]) =>
+    el(
+      "details",
+      { class: "panel fold" },
+      el("summary", {}, title),
+      // A fold of one class-valued slot shows that object directly, without a label.
+      names.length === 1 && slots.find((s) => s.name === names[0]).kind === "class"
+        ? renderValue(spec, slots.find((s) => s.name === names[0]), record[names[0]], 0, ctx)
+        : renderObject(spec, spec.root, record, 0, { only: names, ctx }),
+    ),
+  );
+  const rest = slots.filter((s) => !s.section && !s.collapsed).map((s) => s.name);
+  const details = rest.length
+    ? el("section", { class: "panel detail" }, el("h2", {}, "Details"), renderObject(spec, spec.root, record, 0, { only: rest, ctx }))
+    : null;
+  return { sections, details, folded };
 }
 
 async function service(config, path, options = {}) {
@@ -188,18 +255,23 @@ async function main() {
       );
       return;
     }
-    const title = fillTemplate(spec.title_template, record) || record[spec.key];
-    document.title = title;
+    document.title = fillTemplate(spec.title_template, record) || record[spec.key];
+    const heading = spec.title_template ? fillHeading(spec, spec.title_template, record) : [record[spec.key]];
+    const lede = spec.lede ? getPath(record, spec.lede) : null;
     const signoff = el("section", { class: "panel", id: "signoff" });
     const history = el("section", { class: "panel", id: "history" });
+    const ctx = recordContext(spec, record);
+    const { tiles, covered } = summary(spec, record);
+    const { sections, details, folded } = layout(spec, record, covered, ctx);
     article.replaceChildren(
       el("p", { class: "crumbs" }, el("a", { href: "index.html" }, "Records"), " › ", el("code", {}, record[spec.key])),
-      el("h1", {}, title),
-      summary(spec, record),
-      el("section", { class: "panel detail" }, el("h2", {}, "Details"), renderObject(spec, spec.root, record)),
-      signoff,
-      history,
-      el("details", {}, el("summary", {}, "Raw record"), el("pre", { class: "raw" }, JSON.stringify(record, null, 2))),
+      el("h1", {}, heading),
+      isEmpty(lede) ? null : el("p", { class: `lede ${tone(spec, record)}`.trim() }, String(lede)),
+      tiles,
+      el("div", { class: "main-col" }, sections, details),
+      el("aside", { class: "side-col" }, signoff, history),
+      ...folded,
+      el("details", { class: "raw-record" }, el("summary", {}, "Raw record"), el("pre", { class: "raw" }, JSON.stringify(record, null, 2))),
     );
     const live = { seen: null };
     async function loadHistory() {

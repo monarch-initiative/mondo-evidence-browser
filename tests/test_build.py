@@ -51,7 +51,9 @@ def test_build_writes_a_complete_static_site(tmp_path: Path) -> None:
         ".nojekyll",
     ]:
         assert (site / name).is_file(), name
-    assert json.loads((site / "view-spec.json").read_text()) == build_view_spec()
+    published = json.loads((site / "view-spec.json").read_text())
+    published.pop("labels")  # added by the build from the registries
+    assert published == build_view_spec()
 
 
 def test_assets_are_versioned_by_content(tmp_path: Path) -> None:
@@ -243,3 +245,9 @@ def test_build_writes_the_first_page_of_each_tab(tmp_path: Path) -> None:
         ]
         assert [r["key"] for r in rows] == expected
         assert all(columns <= set(r) for r in rows)
+
+
+def test_the_site_spec_carries_names_for_labelled_values(tmp_path: Path) -> None:
+    build(config(tmp_path))
+    spec = json.loads((tmp_path / "site" / "view-spec.json").read_text())
+    assert spec["labels"]["resources"]["doid"] == "Disease Ontology"

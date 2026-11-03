@@ -132,3 +132,48 @@ def test_score_has_no_worked_calculation_slot(
     """The formula is explained once on the list page; records carry only the numbers."""
     record = builder.build(raw_by_id[PACKET])
     assert record is not None and "calculation" not in record["inclusion_score"]
+
+
+def test_the_score_says_in_plain_words_what_the_evidence_amounts_to(
+    builder: RecordBuilder, raw_by_id: dict[str, Any]
+) -> None:
+    """The verdict a curator reads first: independent sources by name, score, caveats."""
+    record = builder.build(raw_by_id[PACKET])
+    assert record is not None
+    assert record["inclusion_score"]["summary"] == (
+        "Supported by 2 independent sources (Disease Ontology and Orphanet (ORDO)). "
+        "Score 0.99, strong support. Rule not yet calibrated."
+    )
+
+
+def test_the_verdict_counts_dependent_sources_once(builder: RecordBuilder) -> None:
+    from mondo_evidence_browser.records import verdict
+
+    class Line:
+        def __init__(self, source: str, cluster: str, direction: int, included: bool) -> None:
+            self.source, self.cluster, self.direction, self.included = (
+                source,
+                cluster,
+                direction,
+                included,
+            )
+
+    class Result:
+        value, band, rule_version = 0.5, "moderate support", "1.0.0"
+        lines = [
+            Line("omim", "omim", 1, True),
+            Line("doid", "omim", 1, False),  # derives from OMIM: same cluster
+            Line("wikipedia", "wikipedia", -1, True),
+        ]
+
+    assert verdict(Result(), builder.registry) == (
+        "Supported by 1 independent source (OMIM); disputed by 1 (Wikipedia). "
+        "Score 0.50, moderate support."
+    )
+
+
+def test_claim_types_have_readable_labels() -> None:
+    from mondo_evidence_browser.viewspec import build_view_spec
+
+    titles = {e["value"]: e["title"] for e in build_view_spec()["enums"]["ClaimType"]}
+    assert titles["C003"] == "Synonym"

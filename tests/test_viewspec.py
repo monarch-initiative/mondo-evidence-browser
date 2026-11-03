@@ -205,3 +205,48 @@ def test_classes_carry_their_title_template(spec: dict[str, Any]) -> None:
         "Signed off by {curator.name} on {decided_at}"
     )
     assert spec["classes"]["SignOff"]["title_template"] is None
+
+
+def test_overlay_classes_add_display_hints_to_imported_classes(spec: dict[str, Any]) -> None:
+    """The evidence classes come from mondo-ai unedited; overlays say how to show them."""
+    assert spec["overlays"]["ConcordanceItem"] == "ConcordanceItemView"
+    assert spec["overlays"]["SieveEvidenceLine"] == "EvidenceLineView"
+    item = spec["classes"]["ConcordanceItemView"]
+    assert item["renderer"] == "mapping"
+    slots = {s["name"]: s for s in item["slots"]}
+    assert slots["source_subject"]["role"] == "source_term"
+    assert slots["source_subject_label"]["role"] == "source_term_label"
+    assert slots["id"]["layout"] == "hidden" and slots["type"]["layout"] == "hidden"
+
+
+def test_the_record_page_is_laid_out_from_the_schema(spec: dict[str, Any]) -> None:
+    root = {s["name"]: s for s in spec["classes"][spec["root"]]["slots"]}
+    assert root["has_evidence_lines"]["section"] == "Evidence"
+    assert root["inclusion_score"]["collapsed"] == "How the score was computed"
+    assert root["record_version"]["collapsed"] == "Record details"
+    assert root["statement"]["layout"] == "hidden"  # it is the heading
+    assert spec["lede"] == ["inclusion_score", "summary"]
+    assert spec["roles"]["term"] == ["statement", "subject"]
+    assert spec["roles"]["term_label"] == ["statement", "subject_label"]
+    assert spec["title_template"].startswith("{statement.subject_label} ({statement.subject})")
+
+
+def test_source_ids_are_shown_by_name(spec: dict[str, Any]) -> None:
+    sources = next(c for c in spec["columns"] if c["name"] == "sources")
+    assert sources["labels"] == "resources"
+
+
+def test_one_overlay_per_class(tmp_path: Path) -> None:
+    path = _edit(
+        _schema_copy(tmp_path),
+        lambda d: d["classes"].update(
+            {
+                "SecondLineView": {
+                    "is_a": "SieveEvidenceLine",
+                    "annotations": {"browser_overlay": True},
+                }
+            }
+        ),
+    )
+    with pytest.raises(SpecError, match="SieveEvidenceLine"):
+        build_view_spec(path)

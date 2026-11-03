@@ -298,6 +298,8 @@ def build(cfg: BuildConfig) -> BuildReport:
     (cfg.site_dir / "first-page.json").write_text(json.dumps(first, separators=(",", ":")))
     site_config["first_page"] = "first-page.json"
     (cfg.site_dir / "config.json").write_text(json.dumps(site_config, indent=2) + "\n")
+    # Names for values the schema marks with browser_labels, from the registries.
+    spec["labels"] = {"resources": {r.id: r.name for r in builder.registry.resources.values()}}
     (cfg.site_dir / "view-spec.json").write_text(json.dumps(spec, indent=1) + "\n")
 
     report.tab_counts = EvidenceIndex(cfg.index_path).meta()["tab_counts"]
