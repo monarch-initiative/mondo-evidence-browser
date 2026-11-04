@@ -853,3 +853,22 @@ def test_the_heading_falls_back_to_the_statement_text(page: Page, site: Site) ->
     assert page.evaluate(HEADING, unlabelled)["text"] == "arginase deficiency has exact synonym 'X'"
     bare = {**unlabelled, "statement": {**unlabelled["statement"], "statement_text": None}}
     assert page.evaluate(HEADING, bare)["text"] == PACKET
+
+
+@pytest.mark.parametrize("path", ["", f"record.html?id={PACKET}"])
+def test_the_header_names_the_browser_beside_the_mondo_logo(
+    page: Page, site: Site, path: str
+) -> None:
+    page.goto(f"{site.url}/{path}")
+    brand = page.locator("header.top .brand")
+    expect(brand).to_have_text("Mondo Evidence Browser")
+    logo = brand.locator(".brand-mark")
+    expect(logo).to_be_visible()
+    mask = logo.evaluate(
+        "e => getComputedStyle(e).maskImage || getComputedStyle(e).webkitMaskImage"
+    )
+    assert "mondo-logo.svg" in mask
+    status = page.request.get(re.sub(r'^url\("?|"?\)$', "", mask)).status
+    assert status == 200
+    icon = page.locator("link[rel=icon]")
+    assert page.request.get(icon.evaluate("e => e.href")).status == 200
