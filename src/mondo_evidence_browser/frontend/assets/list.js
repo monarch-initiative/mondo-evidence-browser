@@ -3,33 +3,10 @@
 
 import { currentUser, renderWho } from "./auth.js";
 import { getRecord, ident, loadJSON, loadSite, openDb, readMeta, siteUrl } from "./db.js";
-import { el, enumEntry, readableTime, renderExplainer, renderList, renderPreview, renderScalar, slotTitle } from "./render.js";
-import { decisions, signOff } from "./service.js";
+import { applyLive, columnCell, el, enumEntry, readableTime, renderExplainer, renderPreview, slotTitle } from "./render.js";
+import { decisions, forgetRecent, recentStatuses, signOff } from "./service.js";
 
 const PAGE_SIZE = 50;
-const LIVE_TTL_MS = 30_000;
-
-// Sign-offs made after this build, from the sign-off service: {record id: {status, …}}.
-// The table shows their status at once, so curators working in parallel see each
-// other's decisions without waiting for the next build (filter counts still do).
-let liveCache = null;
-async function liveStatuses(config) {
-  if (!config.service) return {};
-  if (liveCache && Date.now() - liveCache.at < LIVE_TTL_MS) return liveCache.statuses;
-  const since = config.decisions?.as_of;
-  const query = since ? `?since=${encodeURIComponent(since)}` : "";
-  let statuses = liveCache?.statuses ?? {};
-  try {
-    // The service is another system; the table still works without it.
-    const response = await fetch(`${config.service.url}/api/decisions/recent${query}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    statuses = (await response.json()).statuses;
-  } catch (error) {
-    console.warn(`Recent sign-offs are unavailable: ${error.message}`);
-  }
-  liveCache = { at: Date.now(), statuses };
-  return statuses;
-}
 
 // The first tab that has records; tabs without records are hidden unless opened.
 function defaultTab(spec, meta) {
@@ -275,33 +252,6 @@ async function fetchPage(db, spec, state, meta) {
 
 // Long words (e.g. "phosphoribosylaminoimidazole") get break points, so a cell can
 // wrap them instead of pushing the table wider than the page; shorter words never break.
-const LONG_WORD = 20;
-
-function breakable(node) {
-  if (!(node instanceof Text) || !/\S{21,}/.test(node.data)) return node;
-  const out = document.createDocumentFragment();
-  for (const part of node.data.split(/(\s+)/)) {
-    if (part.length <= LONG_WORD) {
-      out.append(part);
-      continue;
-    }
-    for (let i = 0; i < part.length; i += 8) {
-      if (i) out.append(document.createElement("wbr"));
-      out.append(part.slice(i, i + 8));
-    }
-  }
-  return out;
-}
-
-function cell(spec, column, value) {
-  if (column.multivalued) {
-    const values = value ? JSON.parse(value) : [];
-    return renderList(spec, column.kind, values, { format: column.format, enumName: column.enum, labels: column.labels });
-  }
-  if (column.kind === "boolean" && value !== null) value = Boolean(value);
-  return breakable(renderScalar(spec, column.kind, value, { format: column.format, enumName: column.enum, labels: column.labels }));
-}
-
 function renderTabs(container, spec, state, meta, go) {
   container.replaceChildren();
   if (!spec.tabs) return;
@@ -396,20 +346,6 @@ async function togglePreview(dbReady, spec, tr, button, href) {
   // Only the expanded record is fetched, one indexed lookup.
   const record = await getRecord(await dbReady, key);
   cell.replaceChildren(record ? renderPreview(spec, record, href) : el("p", {}, "Record not found."));
-}
-
-// Show the status of records signed off since this build in the rows on screen. It
-// runs when the service answers, so a slow or sleeping service never holds up the table.
-function applyLive(container, spec, live) {
-  const column = spec.columns.find((c) => c.name === spec.status);
-  if (!column) return;
-  for (const [key, recent] of Object.entries(live)) {
-    const td = container.querySelector(`tr[data-key="${CSS.escape(key)}"] td[data-column="${CSS.escape(column.name)}"]`);
-    if (!td) continue;
-    td.replaceChildren(el("span", {}, cell(spec, column, recent.status), el("span", { class: "live-mark" }, " · new")));
-    td.dataset.live = "true";
-    td.title = `Signed off by ${recent.curator} at ${recent.decided_at}, after this build`;
-  }
 }
 
 // Quick sign-off: one-click buttons in each row for the outcomes the schema marks with
@@ -521,7 +457,7 @@ function openQuick(spec, tr, row, option) {
       const decision = result.body.decision;
       const who = decision.curator?.name || decision.curator?.orcid;
       applyLive(table, spec, { [key]: { status: decision[field.name], curator: who, decided_at: decision.decided_at } });
-      liveCache = null;
+      forgetRecent();
       strip.remove();
       return;
     }
@@ -582,7 +518,7 @@ function renderTable(container, spec, state, rows, go, db) {
       { class: "row-link", "data-key": row.key },
       el("td", { class: "expand-cell" }, toggle),
       spec.columns.map((column, i) => {
-        const content = cell(spec, column, row[column.name]);
+        const content = columnCell(spec, column, row[column.name]);
         // The first text column links to the record, so rows work without JS clicks too.
         const linkHere = i === spec.columns.findIndex((c) => c.kind === "string" && !c.multivalued && c.format !== "curie");
         return el(
@@ -660,7 +596,7 @@ async function main() {
     const pager = document.getElementById("pager");
 
     async function show(state) {
-      const live = liveStatuses(config);
+      const live = recentStatuses(config);
       renderTabs(tabs, spec, state, meta, go);
       renderControls(controls, spec, state, meta, go);
       document.body.dataset.loading = "true";

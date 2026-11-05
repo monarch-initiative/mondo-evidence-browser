@@ -128,8 +128,9 @@ def test_record_page_reads_as_an_account_of_the_evidence(page: Page, site: Site)
     """Statement as a sentence, a plain verdict, then one card per piece of evidence."""
     page.goto(f"{site.url}/record.html?id={PACKET}")
     heading = page.locator("h1")
+    # The Mondo id opens the term's page, with all its evidence (see test_term.py).
     expect(heading.get_by_role("link", name="MONDO:0008814")).to_have_attribute(
-        "href", "https://bioregistry.io/MONDO:0008814"
+        "href", "term.html?id=MONDO%3A0008814"
     )
     expect(page.locator(".lede")).to_have_text(
         "Supported by 2 independent sources (Disease Ontology and Orphanet (ORDO)). "

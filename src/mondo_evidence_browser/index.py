@@ -100,6 +100,11 @@ def _unpack(blob: bytes) -> dict[str, Any]:
     return result
 
 
+TERM_INDEX = "ix_term"
+"""Index on the record's Mondo term, tab and default order: a term page's rows in one
+ordered lookup, however many records the term has."""
+
+
 class _Layout:
     """Table definition and row values for one view spec."""
 
@@ -111,6 +116,9 @@ class _Layout:
         self.search = [c["name"] for c in self.columns if c["search"]]
         self.sortable = [c["name"] for c in self.columns if c["sortable"]]
         self.filters = [c for c in self.columns if c["filter"]]
+        # The column holding the record's Mondo term (browser_role: term), for term pages.
+        term = spec.get("roles", {}).get("term")
+        self.term_column = next((c["name"] for c in self.columns if c["path"] == term), None)
         self.positions = {
             name: i for i, name in enumerate(["key", "tab", *[c["name"] for c in self.columns]])
         }
@@ -140,6 +148,13 @@ class _Layout:
                 statements.append(
                     f"CREATE INDEX {_q('ix_' + c['name'])} ON records (tab, {_q(c['name'])})"
                 )
+        if self.term_column:
+            # Term, tab, then the default order: a term page reads its top rows in order.
+            default = self.spec.get("default_sort")
+            order = f", {_q(default['column'])}" if default else ""
+            statements.append(
+                f"CREATE INDEX {_q(TERM_INDEX)} ON records ({_q(self.term_column)}, tab{order})"
+            )
         names = ", ".join(_q(n) for n in self.fts_columns)
         statements.append(
             f"CREATE VIRTUAL TABLE search USING fts5({names}, content='', "
@@ -264,6 +279,8 @@ def build_index(
             t: {c: dict(v) for c, v in cols.items()} for t, cols in filter_values.items()
         },
         "filter_columns": [c["name"] for c in filters],
+        "term_column": layout.term_column,
+        "term_index": TERM_INDEX if layout.term_column else None,
         "filter_combos": {
             tab: [[list(values), n] for (t, values), n in sorted(combos.items()) if t == tab]
             for tab in sorted(tab_counts)

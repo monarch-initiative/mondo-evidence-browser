@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mondo term</title>
+  <link rel="icon" href="assets/mondo-logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/app.css">
+  <link rel="modulepreload" href="assets/auth.js">
+  <link rel="modulepreload" href="assets/db.js">
+  <link rel="modulepreload" href="assets/render.js">
+  <script src="vendor/sql.js-httpvfs/index.js"></script>
+  <script type="module" src="assets/term.js"></script>
+</head>
+<body data-loading="true">
+<header class="top">
+  <div class="wrap top-inner">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span>Mondo <span class="brand-accent">Evidence Browser</span></a>
+    <div class="who" id="who"></div>
+  </div>
+</header>
+<main class="wrap">
+  <p id="status" class="status">Loading the term…</p>
+  <article id="term"></article>
+</main>
+</body>
+</html>
