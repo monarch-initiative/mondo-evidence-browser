@@ -516,7 +516,7 @@ function openQuick(spec, tr, row, option) {
     }
     const values = { [field.name]: option.value };
     for (const area of strip.querySelectorAll("textarea")) if (area.value.trim()) values[area.name] = area.value.trim();
-    const result = await signOff(config, user, key, { record, seenDecision: seen, values });
+    const result = await signOff(config, spec, user, key, { record, seenDecision: seen, values });
     if (result.ok) {
       const decision = result.body.decision;
       const who = decision.curator?.name || decision.curator?.orcid;

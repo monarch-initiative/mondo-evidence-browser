@@ -1,5 +1,7 @@
 // Calls to the sign-off service, shared by the record page and the list's quick sign-off.
 
+import { byRole } from "./render.js";
+
 // A JSON call; a service that cannot be reached comes back as a failed result, not an
 // exception, so pages can say so plainly.
 export async function service(config, path, options = {}) {
@@ -21,14 +23,14 @@ export function decisions(config, key) {
 
 // Record a sign-off on what the curator saw: the record's version and score rule, and
 // the latest decision they were shown (null for none). The service refuses it if any
-// of those changed meanwhile.
-export function signOff(config, user, key, { record, seenDecision, values }) {
+// of those changed meanwhile. The version and rule are read by role (version, rule_version).
+export function signOff(config, spec, user, key, { record, seenDecision, values }) {
   return service(config, `/api/records/${encodeURIComponent(key)}/sign-off`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
     body: JSON.stringify({
-      seen_version: record.record_version,
-      seen_rule_version: record.inclusion_score?.rule_version ?? null,
+      seen_version: byRole(spec, record, "version"),
+      seen_rule_version: byRole(spec, record, "rule_version") ?? null,
       seen_decision: seenDecision,
       values,
     }),

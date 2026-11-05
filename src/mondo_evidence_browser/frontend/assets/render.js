@@ -28,6 +28,11 @@ export function isEmpty(value) {
   );
 }
 
+// A record's value for a browser_role (see the schema), undefined without that role.
+export function byRole(spec, record, role) {
+  return spec.roles?.[role] ? getPath(record, spec.roles[role]) : undefined;
+}
+
 export function getPath(obj, path) {
   let value = obj;
   for (const step of path) {
@@ -118,7 +123,7 @@ export function resolveClass(spec, declared, obj) {
 
 // The record-level values renderers need (the record's Mondo term), from the spec's roles.
 export function recordContext(spec, record) {
-  const at = (role) => (spec.roles?.[role] ? getPath(record, spec.roles[role]) : undefined);
+  const at = (role) => byRole(spec, record, role);
   return { term: at("term"), termLabel: at("term_label") };
 }
 

@@ -240,9 +240,21 @@ def test_sign_off_form_comes_from_the_schema_and_records_a_decision(page: Page, 
     for option in options:
         expect(form.get_by_label(option["title"], exact=True)).to_have_count(1)
     expect(form.locator("[data-field=rationale] textarea")).to_have_count(1)
+    record = site.index.get(PACKET)
+    assert record is not None
+    score = record["inclusion_score"]
+    expect(form).to_contain_text(
+        f"You are signing off version {record['record_version']}, score {score['value']:.3f} "
+        f"({score['rule_id']} {score['rule_version']})"
+    )
     form.get_by_label("Accept", exact=True).check()
     form.locator("[data-field=rationale] textarea").fill("Two independent sources list it.")
-    form.get_by_role("button", name="Record sign-off").click()
+    with page.expect_request("**/sign-off") as request:
+        form.get_by_role("button", name="Record sign-off").click()
+    sent = request.value.post_data_json
+    assert sent is not None
+    assert sent["seen_version"] == record["record_version"]
+    assert sent["seen_rule_version"] == score["rule_version"]
     expect(page.locator(".form-message")).to_have_text("Sign-off recorded.")
     history = page.locator("#history")
     expect(history).to_contain_text("Josiah Carberry")
