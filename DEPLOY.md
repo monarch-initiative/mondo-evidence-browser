@@ -102,6 +102,7 @@ be renewed by hand. If both are set, the app is used.
    | `MEB_ALLOWED_ORIGINS` | `https://monarch-initiative.github.io` |
    | `MEB_GITHUB_APP_ID` | the App ID from step 2 |
    | `MEB_GITHUB_APP_PRIVATE_KEY` | the whole `.pem` file from step 2, pasted as it is (tick **Sensitive**) |
+   | `MEB_OPEN_SIGN_OFF` | optional: `true` lets anyone with an ORCID sign off, not only the curators in `config/agents.yaml`. Their decisions are marked `unregistered (open sign-off)`. Leave it out to allow registered curators only. |
 
 4. **Deploy.** The service's address is shown as the production domain, e.g.
    `https://mondo-evidence-browser.vercel.app`. Check it at `/api/health`: it reports
@@ -170,7 +171,9 @@ GitHub → this repository → Settings → Secrets and variables → **Actions*
 1. **ORCID:** in your ORCID client's Developer tools, add the redirect URI
    `https://monarch-initiative.github.io/mondo-evidence-browser/auth.html`.
 2. **Curators:** add each curator's ORCID iD to
-   [`config/agents.yaml`](config/agents.yaml) with `can_sign_off: true`, and push. Vercel
+   [`config/agents.yaml`](config/agents.yaml) with `can_sign_off: true`, and push.
+   (With `MEB_OPEN_SIGN_OFF=true` anyone can sign off; listed curators keep their role
+   and trust, others are recorded as unregistered.) Vercel
    redeploys from `main`.
 3. **Build:** Actions → *Deploy to GitHub Pages* → **Run workflow**. It builds, uploads
    the data (to Hugging Face, if set up) and deploys the site.

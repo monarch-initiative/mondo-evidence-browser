@@ -154,6 +154,10 @@ class DecisionStore(Protocol):
         ...
 
 
+UNREGISTERED = "unregistered (open sign-off)"
+"""The role recorded for someone outside the curator registry, under open sign-off."""
+
+
 def sign_off(
     records: RecordSource,
     log: DecisionStore,
@@ -168,6 +172,7 @@ def sign_off(
     orcid: str,
     name: str | None,
     now: datetime,
+    open_sign_off: bool = False,
 ) -> dict[str, Any] | Refusal:
     """Record a curator's decision on a record, or say why it cannot be recorded.
 
@@ -178,12 +183,18 @@ def sign_off(
     ``seen_decision`` is the latest decision on the record the curator saw (None if
     none). If another curator has decided since, the sign-off is refused too, so that
     two curators on one record see each other's decisions rather than talk past them.
+
+    Only registered curators may sign off, unless ``open_sign_off``: then anyone with an
+    ORCID may, and a decision by someone not in the registry is marked with the role
+    ``UNREGISTERED`` and no trust, so it can be told apart later. A registry entry that
+    is not a curator (``can_sign_off`` false, or an organisation) is still refused.
     """
     record = records.get(record_id)
     if record is None:
         return Refusal(404, f"No evidence record {record_id}.")
     agent = registry.agent(orcid)
-    if agent is None or agent.kind != "person" or not agent.can_sign_off:
+    unregistered = agent is None and open_sign_off
+    if not unregistered and (agent is None or agent.kind != "person" or not agent.can_sign_off):
         return Refusal(
             403,
             f"{orcid} is not a curator in the agent registry, so it cannot sign off. "
@@ -237,8 +248,8 @@ def sign_off(
         **{k: v.strip() for k, v in values.items() if isinstance(v, str) and v.strip()},
         "curator": {
             "orcid": orcid,
-            "name": name or agent.name,
-            "role": agent.role,
+            "name": name or (agent.name if agent else None),
+            "role": agent.role if agent else UNREGISTERED,
             "trust": registry.agent_trust(orcid, now.date()),
             "trust_as_of": now.date().isoformat(),
         },

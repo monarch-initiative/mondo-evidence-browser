@@ -2,6 +2,7 @@
 
 import json
 import re
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -129,6 +130,42 @@ def test_people_outside_the_curator_registry_cannot_sign_off(client: TestClient)
     response = _post(client, _body(client), token=id_token(sub=STRANGER))
     assert response.status_code == 403
     assert "not a curator" in response.json()["detail"]
+
+
+def test_open_sign_off_lets_any_orcid_sign_off_marked_as_unregistered(
+    settings: ServiceSettings,
+) -> None:
+    open_settings = replace(settings, open_sign_off=True)
+    client = TestClient(create_service(open_settings, orcid_transport=jwks_endpoint()))
+    token = id_token(sub=STRANGER, given_name="Ada", family_name="Visitor")
+    response = _post(client, _body(client), token=token)
+    assert response.status_code == 201, response.text
+    curator = response.json()["decision"]["curator"]
+    assert curator == {
+        "orcid": f"ORCID:{STRANGER}",
+        "name": "Ada Visitor",
+        "role": "unregistered (open sign-off)",
+        "trust_as_of": curator["trust_as_of"],
+    }
+
+
+def test_open_sign_off_keeps_registered_curators_role_and_trust(
+    settings: ServiceSettings,
+) -> None:
+    open_settings = replace(settings, open_sign_off=True)
+    client = TestClient(create_service(open_settings, orcid_transport=jwks_endpoint()))
+    response = _post(client, _body(client))
+    assert response.status_code == 201, response.text
+    curator = response.json()["decision"]["curator"]
+    assert curator["role"] == "core curator (example)"
+    assert curator["trust"] == 0.85
+
+
+def test_open_sign_off_is_off_unless_switched_on() -> None:
+    assert ServiceSettings.from_env({}).open_sign_off is False
+    assert ServiceSettings.from_env({"MEB_OPEN_SIGN_OFF": "true"}).open_sign_off is True
+    assert ServiceSettings.from_env({"MEB_OPEN_SIGN_OFF": " 1\n"}).open_sign_off is True
+    assert ServiceSettings.from_env({"MEB_OPEN_SIGN_OFF": "false"}).open_sign_off is False
 
 
 def test_form_values_are_checked_against_the_schema(client: TestClient) -> None:

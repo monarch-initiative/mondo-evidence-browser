@@ -26,6 +26,8 @@ decisions are committed to a GitHub repository (``MEB_DECISIONS_REPO``).
 ``MEB_GITHUB_TOKEN``       or a fine-grained token that can write only to that repository
 ``ORCID_CLIENT_ID``        ORCID API client id (the id_token audience)
 ``ORCID_BASE_URL``         ``https://sandbox.orcid.org`` (default) or ``https://orcid.org``
+``MEB_OPEN_SIGN_OFF``      ``true`` lets any ORCID sign off, not only registered curators;
+                           their decisions are marked unregistered (default off)
 =========================  =====================================================
 """
 
@@ -77,6 +79,7 @@ class ServiceSettings:
     github_token: str | None = None
     github_app_id: str | None = None
     github_app_private_key: str | None = None
+    open_sign_off: bool = False
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> ServiceSettings:
@@ -106,6 +109,7 @@ class ServiceSettings:
             github_app_private_key=(
                 env.get("MEB_GITHUB_APP_PRIVATE_KEY", "").replace("\\n", "\n").strip() or None
             ),
+            open_sign_off=env.get("MEB_OPEN_SIGN_OFF", "").lower() in ("1", "true", "yes"),
         )
 
 
@@ -344,6 +348,7 @@ def create_service(
                 orcid=identity.orcid,
                 name=identity.name,
                 now=datetime.now(UTC).replace(microsecond=0),
+                open_sign_off=settings.open_sign_off,
             )
         except DecisionStoreError as error:
             return _error(503, f"The sign-off could not be saved: {error}")
