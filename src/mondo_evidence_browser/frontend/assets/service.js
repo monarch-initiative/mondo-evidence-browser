@@ -36,3 +36,31 @@ export function signOff(config, spec, user, key, { record, seenDecision, values 
     }),
   });
 }
+
+// Sign-offs made after this build: {record id: {status, curator, decided_at}}, cached
+// briefly so curators working in parallel see each other's decisions without a
+// rebuild. The service is another system: without it, pages still work.
+const LIVE_TTL_MS = 30_000;
+let liveCache = null;
+
+export async function recentStatuses(config, { fresh = false } = {}) {
+  if (!config.service) return {};
+  if (!fresh && liveCache && Date.now() - liveCache.at < LIVE_TTL_MS) return liveCache.statuses;
+  const since = config.decisions?.as_of;
+  const query = since ? `?since=${encodeURIComponent(since)}` : "";
+  let statuses = liveCache?.statuses ?? {};
+  try {
+    const response = await fetch(`${config.service.url}/api/decisions/recent${query}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    statuses = (await response.json()).statuses;
+  } catch (error) {
+    console.warn(`Recent sign-offs are unavailable: ${error.message}`);
+  }
+  liveCache = { at: Date.now(), statuses };
+  return statuses;
+}
+
+// After this page records a sign-off, the next read asks the service afresh.
+export function forgetRecent() {
+  liveCache = null;
+}

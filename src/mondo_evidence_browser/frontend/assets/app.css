@@ -277,6 +277,7 @@ td[data-live] .badge { box-shadow: 0 0 0 2px var(--accent-soft); }
   .records thead tr { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
   .records thead th { border: 0; padding: 0; background: none; }
   .records thead th:not([aria-sort]) { display: none; }
+  .records thead tr:not(:has(th[aria-sort])) { display: none; } /* no sort bar without sorting */
   .records tbody tr { border-bottom: 1px solid var(--line); padding: 10px 0; }
   .records tbody tr:last-child { border-bottom: 0; }
   .records td { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: 10px; border: 0; padding: 4px 14px; font-size: 0.93rem; }

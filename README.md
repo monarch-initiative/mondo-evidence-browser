@@ -57,6 +57,12 @@ ruff. `just test-unit` and `just test-browser` run each half on its own.
   on GitHub Pages too. The record id is the packet id, which mondo-ai derives from
   the statement itself (`pkt_` + the first 12 hex digits of
   `sha256("{subject}|{predicate}|{object}")`), so Mondo can reference it.
+- **A stable URL per Mondo term:** `term.html?id=MONDO:0003593` lists every evidence
+  record about that term, In Mondo and candidates, each with its score, sources and
+  review status, linking to its record page. Mondo, OLS or a Mondo browser can link
+  to it. The term is the slot with `browser_role: term`; the index looks it up by value
+  (`ix_term`), so a term with thousands of records still reads only a few pages. The
+  Mondo id on record pages and in the list links here.
 - **ORCID login and sign-off:**
   - Curators log in with ORCID using the OpenID Connect implicit flow. That works
     from a static page, so there's no client secret in the browser.

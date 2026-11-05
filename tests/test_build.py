@@ -40,6 +40,7 @@ def test_build_writes_a_complete_static_site(tmp_path: Path) -> None:
     for name in [
         "index.html",
         "record.html",
+        "term.html",
         "auth.html",
         "vendor/sql.js-httpvfs/index.js",
         "vendor/sql.js-httpvfs/sqlite.worker.js",
@@ -63,9 +64,9 @@ def test_assets_are_versioned_by_content(tmp_path: Path) -> None:
     build(config(tmp_path))
     site = tmp_path / "site"
     version = assets_version(FRONTEND / "assets")
-    for name in ["app.css", "list.js", "record.js", "render.js", "db.js", "auth.js"]:
+    for name in ["app.css", "list.js", "record.js", "term.js", "render.js", "db.js", "auth.js"]:
         assert (site / "assets" / version / name).is_file(), name
-    for page in ["index.html", "record.html", "auth.html"]:
+    for page in ["index.html", "record.html", "term.html", "auth.html"]:
         html = (site / page).read_text()
         assert f"assets/{version}/" in html
         assert '"assets/app.css' not in html

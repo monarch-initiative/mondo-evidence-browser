@@ -223,3 +223,19 @@ def test_the_record_page_visuals_fit(page: Page, site: Site, width: int, font: s
     assert m["pageWidth"] <= m["vw"], m
     assert m["out"] == [], m
     assert m["clipped"] == [], m
+
+
+@pytest.mark.parametrize("width", [1440, 1024, 800, 375])
+def test_the_term_page_fits(page: Page, site: Site, width: int, font: str) -> None:
+    """A term's tables fit like the list's: columns side by side, or cards when narrow."""
+    m = _open(page, site, width, "term.html?id=MONDO%3A0008814", font)
+    assert m["pageWidth"] <= m["vw"], m
+    assert m["tableRight"] <= m["vw"] + 1, m
+    assert m["cellsOutside"] == 0, m
+    assert m["spilling"] == [], m
+
+
+def test_the_term_page_has_no_empty_sort_bar_when_narrow(page: Page, site: Site) -> None:
+    """Its tables cannot be sorted, so the sort bar the list shows on phones is not there."""
+    _open(page, site, 375, "term.html?id=MONDO%3A0008814")
+    expect(page.locator("table.records thead tr").first).to_be_hidden()

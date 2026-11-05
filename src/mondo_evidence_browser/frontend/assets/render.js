@@ -46,6 +46,20 @@ export function enumEntry(spec, enumName, value) {
   return (spec.enums[enumName] || []).find((v) => v.value === value);
 }
 
+// The term page of a Mondo term (browser_role: term): all its evidence records.
+export function termHref(value) {
+  return `term.html?id=${encodeURIComponent(value)}`;
+}
+
+function termLink(value) {
+  return el("a", { href: termHref(value), class: "term-link", title: `All evidence for ${value}` }, String(value));
+}
+
+function isTermPath(spec, path) {
+  const term = spec.roles?.term;
+  return Boolean(term) && term.length === path.length && term.every((step, i) => step === path[i]);
+}
+
 export function curieUrl(value) {
   if (typeof value !== "string") return null;
   if (/^https?:\/\//.test(value)) return value;
@@ -404,7 +418,8 @@ export function fillHeading(spec, template, record) {
     const slot = slotAtPath(spec, path);
     const curie = slot && (slot.kind === "curie" || slot.format === "curie");
     if (value !== undefined && value !== null) {
-      parts.push(curie ? renderScalar(spec, "curie", value, { format: "curie" }) : String(readableTime(value)));
+      if (isTermPath(spec, path)) parts.push(termLink(value));
+      else parts.push(curie ? renderScalar(spec, "curie", value, { format: "curie" }) : String(readableTime(value)));
     }
     last = match.index + match[0].length;
   }
@@ -473,4 +488,50 @@ export function renderExplainer(spec, className, ruleNote) {
     definitions(cls),
     nested,
   );
+}
+
+// Long unbroken words (chemical names) get break points, so they never widen a table.
+const LONG_WORD = 20;
+
+function breakable(node) {
+  if (!(node instanceof Text) || !/\S{21,}/.test(node.data)) return node;
+  const out = document.createDocumentFragment();
+  for (const part of node.data.split(/(\s+)/)) {
+    if (part.length <= LONG_WORD) {
+      out.append(part);
+      continue;
+    }
+    for (let i = 0; i < part.length; i += 8) {
+      if (i) out.append(document.createElement("wbr"));
+      out.append(part.slice(i, i + 8));
+    }
+  }
+  return out;
+}
+
+// A table cell's content for a column of the index (multivalued columns are JSON lists);
+// the record's Mondo term links to its term page.
+export function columnCell(spec, column, value) {
+  if (column.multivalued) {
+    const values = value ? JSON.parse(value) : [];
+    return renderList(spec, column.kind, values, { format: column.format, enumName: column.enum, labels: column.labels });
+  }
+  if (column.kind === "boolean" && value !== null) value = Boolean(value);
+  if (!isEmpty(value) && isTermPath(spec, column.path)) return termLink(value);
+  return breakable(renderScalar(spec, column.kind, value, { format: column.format, enumName: column.enum, labels: column.labels }));
+}
+
+// Show the status of records signed off since this build in the rows on screen
+// (tr[data-key] > td[data-column]). It runs when the service answers, so a slow or
+// sleeping service never holds up a table.
+export function applyLive(container, spec, live) {
+  const column = spec.columns.find((c) => c.name === spec.status);
+  if (!column) return;
+  for (const [key, recent] of Object.entries(live)) {
+    const td = container.querySelector(`tr[data-key="${CSS.escape(key)}"] td[data-column="${CSS.escape(column.name)}"]`);
+    if (!td) continue;
+    td.replaceChildren(el("span", {}, columnCell(spec, column, recent.status), el("span", { class: "live-mark" }, " · new")));
+    td.dataset.live = "true";
+    td.title = `Signed off by ${recent.curator} at ${recent.decided_at}, after this build`;
+  }
 }

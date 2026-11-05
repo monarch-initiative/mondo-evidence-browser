@@ -252,3 +252,30 @@ def test_counts_for_every_filter_combination_are_stored(
                 )
             ]
             assert n == len(matching)
+
+
+def test_records_can_be_looked_up_by_their_mondo_term(
+    db: Path, records: list[dict[str, Any]], spec: dict[str, Any]
+) -> None:
+    """A term page reads all of a term's records, across tabs, with one index lookup."""
+    meta = EvidenceIndex(db).meta()
+    column = meta["term_column"]
+    assert [c["path"] for c in spec["columns"] if c["name"] == column] == [spec["roles"]["term"]]
+    term = records[0]["statement"]["subject"]
+    conn = sqlite3.connect(db)
+    query = f'SELECT key, tab FROM records WHERE "{column}" = ? ORDER BY tab'
+    plan = " ".join(row[3] for row in conn.execute(f"EXPLAIN QUERY PLAN {query}", (term,)))
+    assert meta["term_index"] in plan
+    assert "SCAN records" not in plan and "TEMP B-TREE" not in plan
+    found = {key for key, _ in conn.execute(query, (term,))}
+    assert found == {r[spec["key"]] for r in records if r["statement"]["subject"] == term}
+    # The page's query: one tab's top rows in the default order, read in index order.
+    default = spec["default_sort"]
+    page_query = (
+        f'SELECT key FROM records WHERE "{column}" = ? AND tab = ? '
+        f'ORDER BY "{default["column"]}" DESC, rowid DESC LIMIT 200'
+    )
+    plan = " ".join(
+        row[3] for row in conn.execute(f"EXPLAIN QUERY PLAN {page_query}", (term, "IN_MONDO"))
+    )
+    assert meta["term_index"] in plan and "TEMP B-TREE" not in plan
