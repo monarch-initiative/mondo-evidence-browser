@@ -8,6 +8,7 @@ import { getRecord, loadSite, openDb, readMeta } from "./db.js";
 import { decisions, signOff } from "./service.js";
 import { evidenceMap, recordGauge } from "./charts.js";
 import {
+  byRole,
   el,
   fillTemplate,
   getPath,
@@ -181,7 +182,8 @@ function renderSignOff(container, spec, config, record, live, loadHistory) {
     );
     return;
   }
-  const score = record.inclusion_score || {};
+  const at = (role) => byRole(spec, record, role);
+  const score = at("score");
   const message = el("p", { class: "form-message", role: "status" });
   const form = el(
     "form",
@@ -190,8 +192,8 @@ function renderSignOff(container, spec, config, record, live, loadHistory) {
     el(
       "p",
       { class: "muted" },
-      `You are signing off version ${record.record_version}, score ${score.value?.toFixed?.(3) ?? "unscored"} ` +
-        `(${score.rule_id} ${score.rule_version}), as ${user.name || user.orcid}. ` +
+      `You are signing off version ${at("version")}, score ${typeof score === "number" ? score.toFixed(3) : "unscored"} ` +
+        `(${at("rule")} ${at("rule_version")}), as ${user.name || user.orcid}. ` +
         "Sign-offs are permanent; a later decision is added on top.",
     ),
     el("button", { class: "button", type: "submit" }, "Record sign-off"),
@@ -205,7 +207,7 @@ function renderSignOff(container, spec, config, record, live, loadHistory) {
       const value = data.get(field.name);
       if (value) values[field.name] = String(value);
     }
-    const result = await signOff(config, user, record[spec.key], { record, seenDecision: live.seen, values });
+    const result = await signOff(config, spec, user, record[spec.key], { record, seenDecision: live.seen, values });
     if (!result.ok) {
       message.textContent = result.body.detail || `Sign-off failed (HTTP ${result.status}).`;
       message.className = "form-message error";

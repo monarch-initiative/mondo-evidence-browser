@@ -26,11 +26,13 @@
 #                                 Mondo term), source_name, source_id, source_term,
 #                                 source_term_label, via, mapping_predicate, confidence,
 #                                 source_assertion, direction, strength, items, anchor
-#                                 (an evidence line's id on the page); statement_text
+#                                 (an evidence line's id on the page); version (the
+#                                 record version a sign-off applies to); statement_text
 #                                 (the heading when the title template cannot be filled);
 #                                 evidence
 #                                 (the section the evidence map heads); for the score:
-#                                 score, band, prior, scaling, log_odds, components; for
+#                                 score, band, prior, scaling, log_odds, components, rule,
+#                                 rule_version; for
 #                                 a score component: line, kind, source, direction,
 #                                 weight, cluster, counted, reason
 #   browser_labels: resources     values are resource ids, shown by their registry names
@@ -172,6 +174,7 @@ classes:
           one version (D-051).
         annotations:
           browser_collapsed: Record details
+          browser_role: version
 
   BrowserStatement:
     is_a: SieveStatement
@@ -250,9 +253,13 @@ classes:
       rule_id:
         title: Rule
         description: The declared aggregation rule that produced the score (D-048).
+        annotations:
+          browser_role: rule
       rule_version:
         title: Rule version
         description: The rule version that produced the score (D-048).
+        annotations:
+          browser_role: rule_version
       as_of:
         title: Levels as of
         description: Date of the quality and trust levels used (D-049, D-060).

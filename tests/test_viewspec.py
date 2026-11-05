@@ -288,6 +288,8 @@ def test_the_score_visuals_find_their_values_by_role(spec: dict[str, Any]) -> No
         "scaling": "scaling",
         "log_odds": "log_odds",
         "components": "components",
+        "rule": "rule_id",
+        "rule_version": "rule_version",
     }
     assert roles("ScoreComponent") == {
         "line": "line_id",
@@ -304,3 +306,28 @@ def test_the_score_visuals_find_their_values_by_role(spec: dict[str, Any]) -> No
 def test_the_statement_text_is_the_headings_fallback(spec: dict[str, Any]) -> None:
     """When the title template cannot be filled, the packet's own sentence heads the page."""
     assert spec["roles"]["statement_text"] == ["statement", "statement_text"]
+
+
+def test_the_sign_off_note_finds_the_version_and_rule_by_role(spec: dict[str, Any]) -> None:
+    """The note above the sign-off button and the sign-off request read slots by role."""
+    assert spec["roles"]["version"] == ["record_version"]
+    assert spec["roles"]["rule"] == ["inclusion_score", "rule_id"]
+    assert spec["roles"]["rule_version"] == ["inclusion_score", "rule_version"]
+
+
+def test_the_front_end_names_no_record_slot() -> None:
+    """No per-field UI code: the front end reads record slots by role, never by name.
+
+    Names shared with a role (statement_text) or the build's meta (rule_id) are left out.
+    """
+    assets = SCHEMA_PATH.parent.parent / "frontend" / "assets"
+    names = [
+        "record_version",
+        "inclusion_score",
+        "has_evidence_lines",
+        "subject_label",
+        "source_subject",
+    ]
+    for script in sorted(assets.glob("*.js")):
+        text = script.read_text()
+        assert [n for n in names if n in text] == [], script.name
