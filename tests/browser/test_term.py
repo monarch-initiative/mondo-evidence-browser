@@ -71,7 +71,9 @@ def test_the_term_page_lists_the_terms_records_by_tab(page: Page, site: Site) ->
 def test_the_term_page_leaves_out_the_terms_own_columns(page: Page, site: Site) -> None:
     _open_term(page, site, _busiest_term(site))
     shown = set(
-        page.locator("th[data-column]").evaluate_all("ths => ths.map(t => t.dataset.column)")
+        page.locator("th[data-column]").evaluate_all(
+            "headers => headers.map(h => h.dataset.column)"
+        )
     )
     assert shown and not shown & TERM_COLUMNS
     assert shown == {c["name"] for c in SPEC["columns"]} - TERM_COLUMNS
