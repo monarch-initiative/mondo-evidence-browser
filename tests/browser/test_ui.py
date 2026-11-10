@@ -885,3 +885,8 @@ def test_the_header_names_the_browser_beside_the_mondo_logo(
     assert status == 200
     icon = page.locator("link[rel=icon]")
     assert page.request.get(icon.evaluate("e => e.href")).status == 200
+
+
+def test_the_sign_offs_are_headed_review_history(page: Page, site: Site) -> None:
+    page.goto(f"{site.url}/record.html?id={PACKET}")
+    expect(page.locator("#history h2")).to_have_text("Review history")
