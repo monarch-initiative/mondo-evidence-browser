@@ -253,6 +253,19 @@ def _marked_classes(sv: SchemaView) -> tuple[str, str | None, str | None, str | 
     return roots[0], form, history, explain
 
 
+def _history_title(sv: SchemaView, history_class: str | None) -> str | None:
+    """The history section's title: the browser_history value, or "History" for ``true``.
+
+    >>> _history_title(SchemaView(SCHEMA_PATH), "Decision")
+    'Review history'
+    """
+    if history_class is None:
+        return None
+    value = _annotations(sv.get_class(history_class), CLASS_ANNOTATIONS)["browser_history"]
+    text = str(value).strip()
+    return "History" if text.lower() == "true" else text
+
+
 def _check_slot_usage(sv: SchemaView) -> None:
     """Every slot_usage in the browser schema must refine a slot its parents have.
 
@@ -380,6 +393,7 @@ def build_view_spec(schema_path: Path = SCHEMA_PATH) -> dict[str, Any]:
         "enums": {name: _enum_values(sv, name) for name in sorted(sv.all_enums())},
         "form": form,
         "history": history_class,
+        "history_title": _history_title(sv, history_class),
         "status": statuses[0] if statuses else None,
         "overlays": overlays,
         "roles": roles,
