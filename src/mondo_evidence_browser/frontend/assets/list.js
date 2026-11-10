@@ -291,6 +291,11 @@ function renderControls(container, spec, state, meta, go) {
       placeholder: "Search " + searchable.map((c) => c.title.toLowerCase()).join(", "),
       "aria-label": "Search records",
     });
+    // Emptying the box (its clear button, or deleting the text) undoes the search at once,
+    // as "Clear all" does; a non-empty search still waits for Enter or the button.
+    input.addEventListener("input", () => {
+      if (!input.value.trim() && state.q) container.requestSubmit();
+    });
     container.append(el("div", { class: "search-row" }, el("label", { class: "search-field" }, input), submit));
   }
   const filters = el("div", { class: "filter-row" });
