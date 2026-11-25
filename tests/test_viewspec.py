@@ -67,13 +67,17 @@ def test_column_properties(spec: dict[str, Any]) -> None:
 def test_preview_items_follow_annotation_order(spec: dict[str, Any]) -> None:
     preview = spec["preview"]
     assert [(p["name"], p["title"]) for p in preview] == [
-        ("inclusion_score__components", "Score components"),
         ("has_evidence_lines", "Evidence lines"),
     ]
-    components = preview[0]
-    assert components["path"] == ["inclusion_score", "components"]
-    assert components["kind"] == "class" and components["class"] == "ScoreComponent"
-    assert components["multivalued"] and components["layout"] == "table"
+    lines = preview[0]
+    assert lines["path"] == ["has_evidence_lines"]
+    assert lines["kind"] == "class" and lines["multivalued"]
+
+
+def test_the_score_maths_stays_on_the_record_page(spec: dict[str, Any]) -> None:
+    """Curators found the score components too much in the list's expanded rows (#18)."""
+    assert "inclusion_score__components" not in [p["name"] for p in spec["preview"]]
+    assert spec["roles"]["components"] == ["inclusion_score", "components"]
 
 
 def test_score_explainer_and_descriptive_component_titles(spec: dict[str, Any]) -> None:

@@ -40,6 +40,9 @@ def _swapped_schema(root: Path) -> Path:
     statement["statement_text"]["annotations"]["browser_preview"] = -1
     record_usage = schema["classes"]["BrowserRecord"]["slot_usage"]
     del record_usage["has_evidence_lines"]["annotations"]["browser_preview"]
+    # A slot that was not previewed becomes previewed.
+    components = schema["classes"]["InclusionScore"]["attributes"]["components"]
+    components["annotations"]["browser_preview"] = 1
     # A retitled column.
     statement["subject_label"]["title"] = "Disease"
     # A removed column.

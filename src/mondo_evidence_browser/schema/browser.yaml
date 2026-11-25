@@ -296,7 +296,6 @@ classes:
         annotations:
           browser_role: components
           browser_layout: table
-          browser_preview: 1
       notes:
         title: Notes
         multivalued: true

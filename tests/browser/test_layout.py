@@ -100,7 +100,9 @@ def test_narrow_screens_show_every_column_of_a_row(
 def test_expanded_preview_fits_too(page: Page, site: Site, width: int, font: str) -> None:
     _open(page, site, width, font=font)
     page.locator("table.records tbody tr button.expand").first.click()
-    expect(page.locator("tr.preview table.detail-table")).to_be_visible()
+    preview = page.locator("tr.preview")
+    expect(preview.get_by_role("link", name="Open the full record")).to_be_visible()
+    expect(preview.locator("article.mapping").first).to_be_visible()
     m: dict[str, Any] = page.evaluate(MEASURE)
     assert m["pageWidth"] <= m["vw"], m
     assert m["previewSpill"] == 0, m
