@@ -123,6 +123,11 @@ def test_form_comes_from_the_form_class(spec: dict[str, Any]) -> None:
 
 def test_history_class(spec: dict[str, Any]) -> None:
     assert spec["history"] == "Decision"
+
+
+def test_the_history_section_is_titled_from_the_schema(spec: dict[str, Any]) -> None:
+    """browser_history can name the section; curators read sign-offs as reviews."""
+    assert spec["history_title"] == "Review history"
     decision = spec["classes"]["Decision"]
     assert "SignOff" in decision["ancestors"]
     names = [s["name"] for s in decision["slots"]]

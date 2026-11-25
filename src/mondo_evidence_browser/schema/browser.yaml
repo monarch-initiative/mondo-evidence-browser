@@ -42,7 +42,8 @@
 # Class annotations:
 #   browser_root: true            the class whose instances are the records
 #   browser_form: true            the class whose slots make the sign-off form
-#   browser_history: true         the class of recorded sign-offs, shown as history
+#   browser_history: "<title>"    the class of recorded sign-offs, shown under that title
+#                                 (true: "History")
 #   browser_explain: true         the class explained on the list page (with its slots)
 #   browser_title: "{path} ..."   template for a record's (or history entry's) heading;
 #                                 identifier placeholders become links
@@ -414,7 +415,7 @@ classes:
       edited or deleted, and the latest one per record is its current decision
       (D-051, D-053).
     annotations:
-      browser_history: true
+      browser_history: Review history
       browser_title: "Signed off by {curator.name} on {decided_at}"
     attributes:
       decision_id:

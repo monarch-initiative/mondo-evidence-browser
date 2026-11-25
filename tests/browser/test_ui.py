@@ -887,6 +887,11 @@ def test_the_header_names_the_browser_beside_the_mondo_logo(
     assert page.request.get(icon.evaluate("e => e.href")).status == 200
 
 
+def test_the_sign_offs_are_headed_review_history(page: Page, site: Site) -> None:
+    page.goto(f"{site.url}/record.html?id={PACKET}")
+    expect(page.locator("#history h2")).to_have_text("Review history")
+
+
 def test_clearing_the_search_box_shows_every_record_again(page: Page, site: Site) -> None:
     """The box's own clear button (or deleting the text) undoes the search, like Clear all."""
     total = site.meta["tab_counts"]["IN_MONDO"]

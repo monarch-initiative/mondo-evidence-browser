@@ -98,7 +98,7 @@ function layout(spec, record, covered, ctx) {
 // Each decision, newest first: a heading from the history class's title template, the
 // values the curator entered (the form's fields), and the full decision on demand.
 function renderHistory(container, spec, decisions) {
-  container.replaceChildren(el("h2", {}, "History"));
+  container.replaceChildren(el("h2", {}, spec.history_title || "History"));
   if (!decisions.length) {
     container.append(el("p", { class: "muted" }, "No sign-offs yet."));
     return;
