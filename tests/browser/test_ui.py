@@ -292,8 +292,9 @@ def test_rows_expand_to_preview_the_record(page: Page, site: Site) -> None:
     expect(preview).to_be_visible()
     for item in SPEC["preview"]:
         expect(preview.locator(f"[data-preview={item['name']}]")).to_contain_text(item["title"])
-    components = preview.locator("table.detail-table[data-class=ScoreComponent] tbody tr")
-    expect(components).to_have_count(2)
+    # The score maths is on the record page only (#18).
+    expect(preview.locator("table.detail-table[data-class=ScoreComponent]")).to_have_count(0)
+    expect(preview).not_to_contain_text("Score components")
     expect(preview.locator("article.mapping")).to_have_count(2)  # same cards as the record page
     expect(preview.get_by_role("link", name="Open the full record")).to_have_attribute(
         "href", f"{site.url}/record.html?id={PACKET}"
@@ -321,14 +322,11 @@ def test_list_page_explains_the_score(page: Page, site: Site) -> None:
         expect(explainer.locator(f"dd[data-slot={slot['name']}]")).to_have_text(slot["description"])
 
 
-def test_expanded_row_explains_components_on_hover(page: Page, site: Site) -> None:
-    _open_list(page, site)
-    page.locator(f"tr[data-key='{PACKET}'] button.expand").click()
-    preview = page.locator(f"tr.preview[data-key='{PACKET}']")
-    expect(preview.locator("[data-preview]").first).to_contain_text("Score components")
-    expect(preview.locator("[data-preview*=calculation]")).to_have_count(0)
+def test_the_score_table_explains_components_on_hover(page: Page, site: Site) -> None:
+    page.goto(f"{site.url}/record.html?id={PACKET}")
+    page.locator("details", has_text="How the score was computed").locator("summary").click()
     slots = {s["name"]: s for s in SPEC["classes"]["ScoreComponent"]["slots"]}
-    header = preview.locator("table.detail-table th", has_text="Source prior (q)")
+    header = page.locator("table.detail-table th", has_text="Source prior (q)")
     expect(header).to_have_attribute("title", slots["source_prior"]["description"])
     expect(header).to_have_class(re.compile(r"has-help"))
     assert header.evaluate("th => getComputedStyle(th).cursor") != "help"
