@@ -3,7 +3,7 @@
 
 import { currentUser, renderWho } from "./auth.js";
 import { getRecord, ident, loadJSON, loadSite, openDb, readMeta, siteUrl } from "./db.js";
-import { applyLive, columnCell, el, enumEntry, readableTime, renderExplainer, renderPreview, slotTitle } from "./render.js";
+import { applyLive, columnCell, el, viewEvidenceCell, viewEvidenceHeader, enumEntry, readableTime, renderExplainer, renderPreview, slotTitle } from "./render.js";
 import { decisions, forgetRecent, recentStatuses, signOff } from "./service.js";
 
 const PAGE_SIZE = 50;
@@ -344,7 +344,7 @@ async function togglePreview(dbReady, spec, tr, button, href) {
     button.setAttribute("aria-expanded", "false");
     return;
   }
-  const cell = el("td", { colspan: spec.columns.length + (quick ? 2 : 1) }, el("p", { class: "muted" }, "Loading…"));
+  const cell = el("td", { colspan: spec.columns.length + 2 }, el("p", { class: "muted" }, "Loading…"));
   const previewRow = el("tr", { class: "preview", "data-key": key, id: `preview-${key}` }, cell);
   tr.after(previewRow);
   button.setAttribute("aria-expanded", "true");
@@ -502,7 +502,7 @@ function renderTable(container, spec, state, rows, go, db) {
         : column.title;
       return el("th", { scope: "col", "aria-sort": ariaSort, "data-column": column.name, title: column.description || null }, label);
     }),
-    quick ? el("th", { scope: "col", class: "actions-col" }, "Sign off") : null,
+    viewEvidenceHeader(quick ? "Sign off" : null),
   );
   const body = rows.map((row) => {
     const href = siteUrl(`record.html?id=${encodeURIComponent(row.key)}`);
@@ -520,30 +520,24 @@ function renderTable(container, spec, state, rows, go, db) {
     );
     const tr = el(
       "tr",
-      { class: "row-link", "data-key": row.key },
+      { "data-key": row.key },
       el("td", { class: "expand-cell" }, toggle),
-      spec.columns.map((column, i) => {
-        const content = columnCell(spec, column, row[column.name]);
-        // The first text column links to the record, so rows work without JS clicks too.
-        const linkHere = i === spec.columns.findIndex((c) => c.kind === "string" && !c.multivalued && c.format !== "curie");
-        return el(
+      spec.columns.map((column) =>
+        el(
           "td",
           {
             "data-column": column.name,
             "data-label": column.title,
             class: [`k-${column.kind}`, column.format ? `f-${column.format}` : ""].join(" ").trim(),
           },
-          linkHere ? el("a", { href, class: "record-link" }, content) : content,
-        );
-      }),
-      quick ? el("td", { class: "actions-cell", "data-label": "Sign off" }, quickButtons(spec, row, href)) : null,
+          columnCell(spec, column, row[column.name]),
+        ),
+      ),
+      viewEvidenceCell(row.key, quick ? quickButtons(spec, row, href) : null),
     );
     toggle.addEventListener("click", (event) => {
       event.stopPropagation();
       togglePreview(db, spec, tr, toggle, href);
-    });
-    tr.addEventListener("click", (event) => {
-      if (!event.target.closest("a, button")) location.assign(href);
     });
     return tr;
   });

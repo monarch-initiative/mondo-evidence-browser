@@ -115,9 +115,12 @@ def test_filters_use_the_counts_in_meta(page: Page, site: Site) -> None:
     expect(page.locator("#count")).to_contain_text(f"of {n} records")
 
 
-def test_clicking_a_row_opens_the_record_at_its_stable_url(page: Page, site: Site) -> None:
+def test_view_evidence_opens_the_record_at_its_stable_url(page: Page, site: Site) -> None:
     _open_list(page, site)
-    page.locator(f"tr[data-key='{PACKET}'] td[data-column=claim_type]").click()
+    link = page.locator(f"tr[data-key='{PACKET}'] a.view-evidence")
+    expect(link).to_have_text("View evidence")
+    expect(link).to_have_attribute("href", f"record.html?id={PACKET}")
+    link.click()
     expect(page).to_have_url(f"{site.url}/record.html?id={PACKET}")
     expect(page.locator("h1")).to_have_text(
         "arginase deficiency (MONDO:0008814) has exact synonym “Arginase deficiency”"
@@ -304,10 +307,15 @@ def test_rows_expand_to_preview_the_record(page: Page, site: Site) -> None:
     expect(preview).to_have_count(0)
 
 
-def test_row_click_still_opens_the_record(page: Page, site: Site) -> None:
+def test_a_row_links_only_to_its_term_and_its_evidence(page: Page, site: Site) -> None:
+    """Curators expected "Disease Ontology" under Sources to open DO, not the record (#17)."""
     _open_list(page, site)
-    page.locator(f"tr[data-key='{PACKET}'] td[data-column=sources]").click()
-    expect(page).to_have_url(f"{site.url}/record.html?id={PACKET}")
+    row = page.locator(f"tr[data-key='{PACKET}']")
+    hrefs = row.locator("a").evaluate_all("links => links.map(a => a.getAttribute('href'))")
+    assert hrefs == ["term.html?id=MONDO%3A0008814", f"record.html?id={PACKET}"]
+    for column in ("claim_type", "sources", "review_status", "statement__subject_label"):
+        row.locator(f"td[data-column={column}]").click()
+        expect(page).to_have_url(f"{site.url}/")
 
 
 def test_list_page_explains_the_score(page: Page, site: Site) -> None:

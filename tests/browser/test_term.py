@@ -1,5 +1,6 @@
 """The term page: every evidence record about one Mondo term, at a stable URL."""
 
+import re
 import sqlite3
 from urllib.parse import quote
 
@@ -64,7 +65,7 @@ def test_the_term_page_lists_the_terms_records_by_tab(page: Page, site: Site) ->
         if not by_tab.get(tab):
             expect(section).to_contain_text("None")
     first = next(iter(next(v for v in by_tab.values() if v)))
-    link = page.locator(f'tr[data-key="{first}"] a.record-link')
+    link = page.locator(f'tr[data-key="{first}"] a.view-evidence')
     expect(link).to_have_attribute("href", f"record.html?id={first}")
 
 
@@ -136,3 +137,14 @@ def test_the_term_page_reads_lazily_and_caps_long_lists(page: Page, big_site: Si
     read = page.evaluate("async () => await window.__meb.bytesRead()")
     size = (big_site.root / "evidence.db").stat().st_size
     assert read < size * 0.2, f"read {read} of {size} bytes"
+
+
+def test_term_page_rows_link_only_to_their_evidence(page: Page, site: Site) -> None:
+    term = _busiest_term(site)
+    _open_term(page, site, term)
+    row = page.locator("tr[data-key]").first
+    key = row.get_attribute("data-key")
+    hrefs = row.locator("a").evaluate_all("links => links.map(a => a.getAttribute('href'))")
+    assert hrefs == [f"record.html?id={key}"]
+    row.locator("td[data-column=sources]").click()
+    expect(page).to_have_url(re.compile(r"term\.html"))
