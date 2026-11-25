@@ -890,3 +890,17 @@ def test_the_header_names_the_browser_beside_the_mondo_logo(
 def test_the_sign_offs_are_headed_review_history(page: Page, site: Site) -> None:
     page.goto(f"{site.url}/record.html?id={PACKET}")
     expect(page.locator("#history h2")).to_have_text("Review history")
+
+
+def test_clearing_the_search_box_shows_every_record_again(page: Page, site: Site) -> None:
+    """The box's own clear button (or deleting the text) undoes the search, like Clear all."""
+    total = site.meta["tab_counts"]["IN_MONDO"]
+    _open_list(page, site, "?q=arginase")
+    count = page.locator("#count")
+    expect(count).not_to_contain_text(f"of {total} records")
+    box = page.locator("input[name=q]")
+    box.fill("")  # what the clear button does: empty the box, firing an input event
+    expect(page).not_to_have_url(re.compile(r"q=arginase"))
+    expect(page.locator("body")).to_have_attribute("data-loading", "false")
+    expect(count).to_contain_text(f"of {total} records")
+    expect(box).to_have_value("")
