@@ -250,9 +250,11 @@ th button.sort {
 th button.sort:hover { color: var(--ink); }
 th[aria-sort="ascending"] button.sort, th[aria-sort="descending"] button.sort { color: var(--accent); }
 .sort-mark { font-size: 0.85em; }
-tr.row-link { cursor: pointer; transition: background 0.1s; }
-tr.row-link:hover td { background: var(--panel-2); }
-.record-link { color: var(--ink); font-weight: 600; }
+/* A row's one link to its record (#17); the other cells are plain values. */
+.records th.view-col, .records td.view-cell { width: 4.5rem; }
+.records td.view-cell.actions-cell { width: auto; }
+.records td.view-cell .quick-actions { margin-top: 6px; }
+a.view-evidence { font-weight: 600; font-size: 0.85rem; line-height: 1.25; display: inline-block; }
 td[data-live] .badge { box-shadow: 0 0 0 2px var(--accent-soft); }
 /* Short values (scores, identifiers, badges) stay on one line; text wraps at spaces. */
 .records td.f-score, .records td.k-curie, .records td.f-curie, .records td.k-number,
@@ -269,6 +271,8 @@ td[data-live] .badge { box-shadow: 0 0 0 2px var(--accent-soft); }
   .records td { font-size: 0.88rem; }
   .records thead th { font-size: 0.76rem; }
   .records .meter-track { display: none; }
+  .records th.view-col, .records td.view-cell { width: auto; }
+  a.view-evidence .view-more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 /* Narrow screens: each row becomes a card of label-value pairs; sortable headers stay
    as a sort bar. The breakpoint leaves room for wider fonts (e.g. Linux defaults). */
@@ -309,6 +313,9 @@ button.expand[aria-expanded="true"] .chevron { transform: rotate(90deg); }
   .records tr.preview > td { display: block; padding: 12px 14px; }
   .records tr.preview > td::before { content: none; }
   .records thead th.expand-col { display: none; }
+  .records td.view-cell { display: block; width: 100%; padding: 6px 14px 2px; }
+  .records td.view-cell::before { content: none; }
+  a.view-evidence .view-more { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
 }
 
 /* Detail tables fit their container: when it is narrow, each row becomes a list of label-value pairs. */

@@ -535,3 +535,26 @@ export function applyLive(container, spec, live) {
     td.title = `Signed off by ${recent.curator} at ${recent.decided_at}, after this build`;
   }
 }
+
+// A table row's one link to its record page: a "View evidence" cell at the row's end.
+// The other cells are plain values (the Mondo term links to its own page), so nothing
+// else in a row looks like it opens the record (#17).
+// With sign-off buttons (the list, for a logged-in curator) the link shares their
+// column, so the table gets no wider for curators.
+export function viewEvidenceHeader(title = null) {
+  return el(
+    "th",
+    { scope: "col", class: title ? "view-col actions-col" : "view-col" },
+    title || el("span", { class: "visually-hidden" }, "Evidence record"),
+  );
+}
+
+export function viewEvidenceCell(key, actions = null) {
+  return el(
+    "td",
+    actions ? { class: "view-cell actions-cell", "data-label": "Sign off" } : { class: "view-cell" },
+    // Narrow tables show just "View"; the full name stays for screen readers.
+    el("a", { class: "view-evidence", href: `record.html?id=${encodeURIComponent(key)}` }, "View", el("span", { class: "view-more" }, " evidence")),
+    actions,
+  );
+}

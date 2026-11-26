@@ -4,8 +4,8 @@
 // term index, so a term with thousands of records still reads a few pages.
 
 import { renderWho } from "./auth.js";
-import { ident, loadSite, openDb, readMeta, siteUrl } from "./db.js";
-import { applyLive, columnCell, curieUrl, el } from "./render.js";
+import { ident, loadSite, openDb, readMeta } from "./db.js";
+import { applyLive, columnCell, curieUrl, el, viewEvidenceCell, viewEvidenceHeader } from "./render.js";
 import { recentStatuses } from "./service.js";
 
 const LIMIT = 200; // rows per tab; the list's search shows the rest
@@ -15,35 +15,30 @@ function samePath(a, b) {
 }
 
 function table(spec, columns, rows) {
-  const linkAt = columns.findIndex((c) => c.kind === "string" && !c.multivalued && c.format !== "curie");
   const head = el(
     "tr",
     {},
     columns.map((c) => el("th", { scope: "col", "data-column": c.name, title: c.description || null }, c.title)),
+    viewEvidenceHeader(),
   );
-  const body = rows.map((row) => {
-    const href = `record.html?id=${encodeURIComponent(row.key)}`;
-    const tr = el(
+  const body = rows.map((row) =>
+    el(
       "tr",
-      { class: "row-link", "data-key": row.key },
-      columns.map((c, i) => {
-        const content = columnCell(spec, c, row[c.name]);
-        return el(
+      { "data-key": row.key },
+      columns.map((c) =>
+        el(
           "td",
           {
             "data-column": c.name,
             "data-label": c.title,
             class: [`k-${c.kind}`, c.format ? `f-${c.format}` : ""].join(" ").trim(),
           },
-          i === linkAt ? el("a", { href, class: "record-link" }, content) : content,
-        );
-      }),
-    );
-    tr.addEventListener("click", (event) => {
-      if (!event.target.closest("a, button")) location.assign(siteUrl(href));
-    });
-    return tr;
-  });
+          columnCell(spec, c, row[c.name]),
+        ),
+      ),
+      viewEvidenceCell(row.key),
+    ),
+  );
   return el("table", { class: "records" }, el("thead", {}, head), el("tbody", {}, body));
 }
 
